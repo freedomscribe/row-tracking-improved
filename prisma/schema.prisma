@@ -1,0 +1,216 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// Authentication Models
+// ============================================
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String    // Hashed with bcrypt
+  role          Role      @default(USER)
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  accounts      Account[]
+  sessions      Session[]
+  projects      Project[]
+  subscription  Subscription?
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ============================================
+// Subscription Models
+// ============================================
+
+model Subscription {
+  id                       String             @id @default(cuid())
+  userId                   String             @unique
+  stripeCustomerId         String             @unique
+  stripeSubscriptionId     String?            @unique
+  stripePriceId            String?
+  stripeCurrentPeriodEnd   DateTime?
+  tier                     SubscriptionTier   @default(FREE)
+  status                   SubscriptionStatus @default(ACTIVE)
+  projectLimit             Int                @default(2)
+  parcelLimitPerProject    Int                @default(50)
+  userLimit                Int                @default(1)
+  storageLimit             Int                @default(0) // in MB
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("subscriptions")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum SubscriptionTier {
+  FREE
+  BASIC
+  PRO
+  ENTERPRISE
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+  TRIALING
+  INCOMPLETE
+}
+
+// ============================================
+// Core Application Models
+// ============================================
+
+model Project {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  status      String    @default("Active")
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  userId      String
+
+  // Relations
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parcels Parcel[]
+
+  @@index([userId])
+  @@map("projects")
+}
+
+model Parcel {
+  id           String       @id @default(cuid())
+  projectId    String
+  parcelNumber String?
+  pin          String?
+  owner        String?
+  ownerAddress String?
+  ownerCity    String?
+  ownerState   String?
+  ownerZip     String?
+  ownerPhone   String?
+  ownerEmail   String?
+  legalDesc    String?
+  county       String?
+  status       ParcelStatus @default(NOT_STARTED)
+  sequence     Int?
+  milepost     Float?
+  geometry     Json?        // GeoJSON geometry
+  acreage      Float?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  // Relations
+  project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  notes     Note[]
+  documents Document[]
+
+  @@index([projectId])
+  @@index([status])
+  @@index([county])
+  @@map("parcels")
+}
+
+model Note {
+  id        String   @id @default(cuid())
+  parcelId  String
+  content   String
+  category  String?  // e.g., "Contact", "Negotiation", "Legal", "Site Visit"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  parcel Parcel @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+
+  @@index([parcelId])
+  @@map("notes")
+}
+
+model Document {
+  id        String   @id @default(cuid())
+  parcelId  String
+  name      String
+  type      String   // e.g., "Contract", "Survey", "Photo", "Legal"
+  url       String   // Vercel Blob URL or file path
+  size      Int      // in bytes
+  mimeType  String
+  createdAt DateTime @default(now())
+
+  // Relations
+  parcel Parcel @relation(fields: [parcelId], references: [id], onDelete: Cascade)
+
+  @@index([parcelId])
+  @@map("documents")
+}
+
+enum ParcelStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  ACQUIRED
+  CONDEMNED
+  RELOCATED
+}
+
