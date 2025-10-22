@@ -1,266 +1,88 @@
-# Quick Start Guide - ROW Tracking Application
+# Quick Start Guide
 
-This guide will help you get the ROW Tracking application up and running in production as quickly as possible.
+## ✅ Completed
+1. ✅ Fixed NextAuth API route handler
+2. ✅ Updated .env file with your credentials
+3. ✅ Fixed package.json dependencies
+4. ✅ Generated database schema SQL
 
-## ⚡ 5-Minute Setup (Using Vercel)
+## 🔧 Next Steps (Required)
 
-### Step 1: Prerequisites (2 minutes)
+### Step 1: Set Up Database
 
-Before you begin, make sure you have:
-
-1. **GitHub Account** - Sign up at [github.com](https://github.com)
-2. **Vercel Account** - Sign up at [vercel.com](https://vercel.com) (free)
-3. **Google Account** - For OAuth setup
-4. **Stripe Account** - Sign up at [stripe.com](https://stripe.com) (free)
-
-### Step 2: Push Code to GitHub (1 minute)
+Run this SQL file to create all tables:
 
 ```bash
-# Navigate to the project directory
-cd row-tracking-improved
-
-# Initialize git and push to GitHub
-git init
-git add .
-git commit -m "Initial commit: ROW Tracking v2.0"
-git branch -M main
-git remote add origin https://github.com/YOUR_USERNAME/row-tracking.git
-git push -u origin main
+psql -U row_tracker_user -d row_tracking_db -f database_schema.sql
 ```
 
-### Step 3: Deploy to Vercel (2 minutes)
-
-1. Go to [vercel.com/new](https://vercel.com/new)
-2. Click **Import Git Repository**
-3. Select your `row-tracking` repository
-4. Click **Import**
-5. **Don't deploy yet** - we need to add environment variables first
-
-## 🔧 Configuration (15 minutes)
-
-### Database Setup (5 minutes)
-
-**Option A: Vercel Postgres (Recommended)**
-
-1. In your Vercel project, go to **Storage** tab
-2. Click **Create Database** → **Postgres**
-3. Name it `row-tracking-db`
-4. Copy the `DATABASE_URL` connection string
-5. Add it to your environment variables in Vercel
-
-**Option B: Supabase (Free Alternative)**
-
-1. Go to [supabase.com](https://supabase.com)
-2. Create new project
-3. Go to **Settings** → **Database**
-4. Copy **Connection String** (Transaction mode)
-5. Replace `[YOUR-PASSWORD]` with your database password
-
-### Google OAuth Setup (5 minutes)
-
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Create new project: **ROW Tracking**
-3. Go to **APIs & Services** → **Credentials**
-4. Click **Create Credentials** → **OAuth 2.0 Client ID**
-5. Configure:
-   - Application type: **Web application**
-   - Name: **ROW Tracking**
-   - Authorized redirect URIs: `https://your-app.vercel.app/api/auth/callback/google`
-6. Copy **Client ID** and **Client Secret**
-
-### Stripe Setup (5 minutes)
-
-1. Go to [Stripe Dashboard](https://dashboard.stripe.com)
-2. Switch to **Production mode** (toggle in top right)
-3. Create products:
-   - **Basic Plan**: $29/month
-   - **Pro Plan**: $99/month
-   - **Enterprise Plan**: Custom
-4. Copy each **Price ID** (starts with `price_`)
-5. Go to **Developers** → **API Keys**
-6. Copy **Publishable key** and **Secret key**
-7. Go to **Developers** → **Webhooks**
-8. Add endpoint: `https://your-app.vercel.app/api/webhooks/stripe`
-9. Select events:
-   - `checkout.session.completed`
-   - `customer.subscription.updated`
-   - `customer.subscription.deleted`
-   - `invoice.payment_succeeded`
-   - `invoice.payment_failed`
-10. Copy **Signing secret**
-
-### Add Environment Variables to Vercel
-
-In your Vercel project settings, go to **Settings** → **Environment Variables** and add:
-
-```env
-# Database
-DATABASE_URL=postgresql://...
-
-# NextAuth
-NEXTAUTH_URL=https://your-app.vercel.app
-NEXTAUTH_SECRET=run-this-command-openssl-rand-base64-32
-
-# Google OAuth
-GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=your-client-secret
-
-# Stripe
-STRIPE_SECRET_KEY=sk_live_...
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_...
-STRIPE_WEBHOOK_SECRET=whsec_...
-STRIPE_BASIC_PRICE_ID=price_...
-STRIPE_PRO_PRICE_ID=price_...
-STRIPE_ENTERPRISE_PRICE_ID=price_...
-```
-
-**To generate NEXTAUTH_SECRET:**
-```bash
-openssl rand -base64 32
-```
-
-## 🚀 Deploy
-
-1. Click **Deploy** in Vercel
-2. Wait for build to complete (2-3 minutes)
-3. Your app will be live at `https://your-app.vercel.app`
-
-## 🗄️ Initialize Database
-
-After deployment, run migrations:
+Or if you have the project locally with Node.js:
 
 ```bash
-# Install Vercel CLI
-npm install -g vercel
-
-# Login to Vercel
-vercel login
-
-# Link your project
-vercel link
-
-# Pull environment variables
-vercel env pull .env.production
-
-# Run migrations
-npx prisma migrate deploy
+npm run prisma:push
 ```
 
-## ✅ Verify Deployment
+### Step 2: **CRITICAL** - Update Google OAuth Redirect URI
 
-### 1. Test Authentication
-- Visit your deployed site
-- Click **Sign In**
-- Try **Sign in with Google**
-- Verify you can create an account
+⚠️ **IMPORTANT**: You need to verify your Google OAuth redirect URI!
 
-### 2. Test Subscription
-- Go to **Pricing** page
-- Click **Subscribe** on Basic plan
-- Use Stripe test card: `4242 4242 4242 4242`
-- Expiry: Any future date
-- CVC: Any 3 digits
-- Verify subscription activates
+You need to update your Google Cloud Console:
 
-### 3. Test Core Features
-- Create a new project
-- Add a parcel
-- Add a note
-- Export to CSV
-- View analytics
+1. Go to: https://console.cloud.google.com/apis/credentials
+2. Find your OAuth 2.0 Client ID: `944871010247-agsjm057ua6ep5kmhlt356g4ticoki37`
+3. Edit the **Authorized redirect URIs**
+4. Make sure it includes:
+   ```
+   http://localhost:3000/api/auth/callback/google
+   ```
+5. Save changes
 
-## 🎉 You're Live!
+### Step 3: Start the Application
 
-Your ROW Tracking application is now running in production!
-
-## 📱 Next Steps
-
-### Customize Your App
-
-1. **Update Branding**
-   - Edit `src/app/page.tsx` for landing page
-   - Update colors in `src/components/providers/AppProviders.tsx`
-   - Add your logo to `public/` folder
-
-2. **Configure Email**
-   - Add SendGrid or Resend for email notifications
-   - Set up transactional emails
-
-3. **Add Custom Domain**
-   - Go to Vercel project → **Settings** → **Domains**
-   - Add your custom domain
-   - Update DNS records
-   - Update OAuth redirect URIs
-   - Update Stripe webhook URL
-
-### Invite Users
-
-1. Share your app URL
-2. Users can sign up with Google
-3. Start with Free tier
-4. Upgrade as needed
-
-### Monitor Your App
-
-1. **Vercel Dashboard** - Traffic and performance
-2. **Stripe Dashboard** - Subscriptions and payments
-3. **Database Dashboard** - Database health
-
-## 🆘 Troubleshooting
-
-### Build Fails
-
-**Error: Prisma Client not generated**
 ```bash
-# Add to Vercel build command:
-prisma generate && next build
+npm run dev
 ```
 
-### OAuth Not Working
+The app will run on http://localhost:3000
 
-**Error: Redirect URI mismatch**
-- Check OAuth redirect URIs match exactly
-- Must be: `https://yourdomain.com/api/auth/callback/google`
-- Update in Google Cloud Console
+### Step 4: Test Login
 
-### Stripe Webhook Fails
+1. Navigate to http://localhost:3000/login
+2. Click "Sign in with Google"
+3. Authorize with your Google account
+4. You should be redirected to http://localhost:3000/dashboard
 
-**Error: Webhook signature verification failed**
-- Use production webhook secret (not test)
-- Verify URL is correct: `https://yourdomain.com/api/webhooks/stripe`
-- Check webhook is enabled in Stripe Dashboard
+## 🐛 Troubleshooting
 
-### Database Connection Issues
+### "Redirect URI mismatch" error
+- Verify the redirect URI in Google Console exactly matches: `http://localhost:3000/api/auth/callback/google`
+- No trailing slash
+- Correct port (3000)
 
-**Error: Can't reach database server**
-- Verify DATABASE_URL is correct
-- Check database is running
-- Add `?sslmode=require` to connection string if needed
+### Database connection error
+- Verify PostgreSQL is running: `sudo systemctl status postgresql`
+- Test connection: `psql -U row_tracker_user -d row_tracking_db`
+- Check DATABASE_URL in .env matches your actual credentials
 
-## 💡 Tips
+### "Can't resolve prisma client" error
+- Run from your local machine: `npm run prisma:generate`
+- This will generate the Prisma client locally
 
-1. **Start Small** - Begin with Free tier, upgrade as you grow
-2. **Test Thoroughly** - Use Stripe test mode before going live
-3. **Backup Regularly** - Set up automatic database backups
-4. **Monitor Costs** - Keep an eye on Vercel and database usage
-5. **Update Dependencies** - Run `pnpm update` monthly
+## 📝 Current Configuration
 
-## 📚 Additional Resources
+- **App URL**: http://localhost:3000
+- **Database**: postgresql://row_tracker_user@localhost:5432/row_tracking_db
+- **Google OAuth**: Configured (verify redirect URI!)
+- **Stripe**: Configured with test keys
 
-- **Full Documentation**: See `README.md`
-- **Deployment Guide**: See `DEPLOYMENT.md`
-- **Feature Roadmap**: See `FEATURE_SUGGESTIONS.md`
-- **Project Summary**: See `PROJECT_SUMMARY.md`
+## 🎯 What Should Work After Setup
 
-## 🤝 Need Help?
+1. ✅ Google login
+2. ✅ Automatic user creation
+3. ✅ Free tier subscription creation
+4. ✅ Dashboard access
+5. ✅ Protected routes (redirects to login if not authenticated)
 
-- **Vercel Support**: [vercel.com/support](https://vercel.com/support)
-- **Stripe Support**: [support.stripe.com](https://support.stripe.com)
-- **GitHub Issues**: Open an issue in your repository
+## 📞 Need Help?
 
----
-
-**Congratulations! You've successfully deployed your ROW Tracking application! 🎉**
-
-**Now go track some right-of-way parcels!**
-
+Check the detailed SETUP_GUIDE.md for more information.
