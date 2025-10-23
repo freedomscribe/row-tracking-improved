@@ -1,3 +1,5 @@
+'use client';
+
 import { SessionProvider } from 'next-auth/react';
 import { ThemeProvider, createTheme } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
