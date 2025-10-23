@@ -46,15 +46,25 @@ export async function POST(req: NextRequest) {
     }
     
     // Check subscription limits
-    const subscription = await prisma.subscription.findUnique({
+    let subscription = await prisma.subscription.findUnique({
       where: { userId: session.user.id },
     });
-    
+
+    // Auto-create FREE subscription if missing (safety fallback)
     if (!subscription) {
-      return NextResponse.json(
-        { error: 'No subscription found' },
-        { status: 400 }
-      );
+      console.log('No subscription found for user, creating FREE subscription');
+      subscription = await prisma.subscription.create({
+        data: {
+          userId: session.user.id,
+          stripeCustomerId: '', // Will be set when user subscribes
+          tier: 'FREE',
+          status: 'ACTIVE',
+          projectLimit: 2,
+          parcelLimitPerProject: 50,
+          userLimit: 1,
+          storageLimit: 0,
+        },
+      });
     }
     
     // Check project limit
