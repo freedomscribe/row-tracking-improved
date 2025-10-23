@@ -22,9 +22,13 @@ export async function GET(
       },
       include: {
         parcels: {
-          orderBy: {
-            sequence: 'asc',
-          },
+          orderBy: [
+            { sequence: 'asc' },
+            { parcelNumber: 'asc' },
+          ],
+        },
+        _count: {
+          select: { parcels: true },
         },
       },
     });

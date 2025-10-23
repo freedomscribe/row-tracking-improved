@@ -27,9 +27,9 @@
     "@tmcw/togeojson": "^7.1.1",
     "bcryptjs": "^2.4.3",
     "framer-motion": "^11.15.0",
+    "json2csv": "^6.0.0-alpha.2",
     "jspdf": "^2.5.2",
     "jspdf-autotable": "^3.8.4",
-    "json2csv": "^6.0.0-alpha.2",
     "jszip": "^3.10.1",
     "leaflet": "^1.9.4",
     "next": "^15.1.4",
@@ -38,7 +38,7 @@
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.54.2",
     "react-leaflet": "^4.2.1",
-    "recharts": "^2.15.0",
+    "recharts": "^2.15.4",
     "stripe": "^17.5.0",
     "zod": "^3.24.1",
     "zustand": "^5.0.2"
@@ -63,4 +63,3 @@
     "pnpm": ">=8.0.0"
   }
 }
-
