@@ -25,8 +25,9 @@ import {
   FilterList as FilterIcon,
   Download as DownloadIcon,
   Upload as UploadIcon,
+  Delete as DeleteIcon,
 } from '@mui/icons-material';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
 
 // Dynamically import map component (client-side only)
@@ -68,14 +69,34 @@ export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();
   const projectId = params.id as string;
+  const queryClient = useQueryClient();
 
   const [selectedParcelId, setSelectedParcelId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
 
-  const { data: project, isLoading, error } = useQuery<Project>({
+  const { data: project, isLoading, error} = useQuery<Project>({
     queryKey: ['project', projectId],
     queryFn: () => fetchProject(projectId),
   });
+
+  // Delete parcel mutation
+  const deleteParcelMutation = useMutation({
+    mutationFn: async (parcelId: string) => {
+      const res = await fetch(`/api/parcels/${parcelId}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error('Failed to delete parcel');
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+      setSelectedParcelId(null);
+    },
+  });
+
+  const handleDeleteParcel = (parcelId: string, e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent selecting the parcel when clicking delete
+    if (window.confirm('Are you sure you want to delete this parcel?')) {
+      deleteParcelMutation.mutate(parcelId);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -191,14 +212,26 @@ export default function ProjectDetailPage() {
             ) : (
               filteredParcels.map((parcel) => (
                 <Box key={parcel.id}>
-                  <ListItem disablePadding>
+                  <ListItem
+                    disablePadding
+                    secondaryAction={
+                      <IconButton
+                        edge="end"
+                        aria-label="delete"
+                        onClick={(e) => handleDeleteParcel(parcel.id, e)}
+                        size="small"
+                      >
+                        <DeleteIcon fontSize="small" />
+                      </IconButton>
+                    }
+                  >
                     <ListItemButton
                       selected={selectedParcelId === parcel.id}
                       onClick={() => setSelectedParcelId(parcel.id)}
                     >
                       <ListItemText
                         primary={
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', pr: 1 }}>
                             <Typography variant="body1">
                               {parcel.parcelNumber || `Parcel ${parcel.sequence || 'N/A'}`}
                             </Typography>

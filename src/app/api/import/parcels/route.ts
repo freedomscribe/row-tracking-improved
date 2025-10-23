@@ -4,12 +4,56 @@ import { prisma } from '@/lib/prisma';
 import * as toGeoJSON from '@tmcw/togeojson';
 import JSZip from 'jszip';
 import { DOMParser } from '@xmldom/xmldom';
+import { parse as parseHTML } from 'node-html-parser';
 
 // Helper to parse KML string to GeoJSON
 function parseKML(kmlString: string): any {
   const parser = new DOMParser();
   const kmlDoc = parser.parseFromString(kmlString, 'text/xml');
   return toGeoJSON.kml(kmlDoc);
+}
+
+// Helper to parse HTML description field and extract key-value pairs
+function parseHTMLDescription(htmlString: string): Record<string, string> {
+  const data: Record<string, string> = {};
+
+  try {
+    const root = parseHTML(htmlString);
+
+    // Try to find table rows with key-value pairs
+    const rows = root.querySelectorAll('tr');
+    rows.forEach((row) => {
+      const cells = row.querySelectorAll('td');
+      if (cells.length >= 2) {
+        const key = cells[0].textContent.trim();
+        const value = cells[1].textContent.trim();
+        if (key && value) {
+          data[key] = value;
+        }
+      }
+    });
+
+    // Also try to extract from div/span elements
+    const divs = root.querySelectorAll('div, span');
+    divs.forEach((div) => {
+      const text = div.textContent;
+      // Look for patterns like "Key: Value" or "Key = Value"
+      const match = text.match(/^([^:=]+)[:=]\s*(.+)$/);
+      if (match) {
+        const key = match[1].trim();
+        const value = match[2].trim();
+        if (key && value && !data[key]) {
+          data[key] = value;
+        }
+      }
+    });
+
+    console.log('Parsed HTML description data:', Object.keys(data));
+  } catch (error) {
+    console.error('Error parsing HTML description:', error);
+  }
+
+  return data;
 }
 
 // Helper function to find property by various name variations (case-insensitive)
@@ -31,12 +75,22 @@ function findProp(props: any, ...names: string[]): any {
 
 // Helper to extract parcel data from GeoJSON feature
 function extractParcelData(feature: any, projectId: string, sequence: number): any {
-  const props = feature.properties || {};
+  let props = feature.properties || {};
   const geometry = feature.geometry;
 
   // Log all available properties for debugging
   console.log(`Feature ${sequence} properties:`, Object.keys(props));
   console.log(`Feature ${sequence} sample data:`, JSON.stringify(props).substring(0, 200));
+
+  // If there's a description field with HTML, parse it and merge with existing props
+  const description = props.description || props.Description || props.DESCRIPTION;
+  if (description && (description.includes('<') || description.includes('table'))) {
+    console.log(`Feature ${sequence} has HTML description, parsing...`);
+    const parsedData = parseHTMLDescription(description);
+    // Merge parsed data with existing props (existing props take precedence)
+    props = { ...parsedData, ...props };
+    console.log(`Feature ${sequence} after parsing description:`, Object.keys(props));
+  }
 
   // Try to find common property names for parcel information (case-insensitive)
   const parcelNumber = findProp(
