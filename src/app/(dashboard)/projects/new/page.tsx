@@ -26,16 +26,34 @@ export default function NewProjectPage() {
     setLoading(true);
 
     try {
+      // Only send non-empty fields
+      const projectData: any = {
+        name: formData.name,
+      };
+
+      if (formData.description) {
+        projectData.description = formData.description;
+      }
+
+      if (formData.startDate) {
+        projectData.startDate = formData.startDate;
+      }
+
+      if (formData.endDate) {
+        projectData.endDate = formData.endDate;
+      }
+
       const response = await fetch('/api/projects', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(projectData),
       });
 
       if (response.ok) {
         router.push('/projects');
       } else {
-        alert('Failed to create project');
+        const error = await response.json();
+        alert(error.error || 'Failed to create project');
       }
     } catch (error) {
       console.error('Error creating project:', error);
