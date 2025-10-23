@@ -76,8 +76,11 @@ export async function POST(req: NextRequest) {
     }
     
     const body = await req.json();
+    console.log('Received project data:', body);
+
     const validatedData = projectSchema.parse(body);
-    
+    console.log('Validated data:', validatedData);
+
     const project = await prisma.project.create({
       data: {
         ...validatedData,
@@ -92,11 +95,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ project }, { status: 201 });
   } catch (error) {
     console.error('Error creating project:', error);
-    
+
+    // Log full error details for debugging
     if (error instanceof Error) {
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
-    
+
     return NextResponse.json(
       { error: 'Failed to create project' },
       { status: 500 }
