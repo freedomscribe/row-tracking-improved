@@ -1,4 +1,3 @@
-'''
 import { Drawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Box, Typography, Divider } from '@mui/material';
 import Link from 'next/link';
 import DashboardIcon from '@mui/icons-material/Dashboard';
@@ -66,4 +65,3 @@ export default function Sidebar({ isOpen, onClose, isMobile }: SidebarProps) {
     </Drawer>
   );
 }
-'''
