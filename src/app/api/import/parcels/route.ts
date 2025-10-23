@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 import * as toGeoJSON from '@tmcw/togeojson';
 import JSZip from 'jszip';
+import { DOMParser } from '@xmldom/xmldom';
 
 // Helper to parse KML string to GeoJSON
 function parseKML(kmlString: string): any {
@@ -127,10 +128,14 @@ export async function POST(req: NextRequest) {
     try {
       if (fileName.endsWith('.kml')) {
         // Parse KML
+        console.log('Parsing KML file:', fileName);
         const kmlString = new TextDecoder().decode(buffer);
+        console.log('KML string length:', kmlString.length);
         geoJSON = parseKML(kmlString);
+        console.log('Parsed GeoJSON features:', geoJSON?.features?.length || 0);
       } else if (fileName.endsWith('.kmz')) {
         // Parse KMZ (compressed KML)
+        console.log('Parsing KMZ file:', fileName);
         const zip = await JSZip.loadAsync(buffer);
         const kmlFile = Object.keys(zip.files).find((name) =>
           name.toLowerCase().endsWith('.kml')
@@ -143,12 +148,17 @@ export async function POST(req: NextRequest) {
           );
         }
 
+        console.log('Found KML file in archive:', kmlFile);
         const kmlString = await zip.files[kmlFile].async('text');
+        console.log('KML string length:', kmlString.length);
         geoJSON = parseKML(kmlString);
+        console.log('Parsed GeoJSON features:', geoJSON?.features?.length || 0);
       } else if (fileName.endsWith('.geojson') || fileName.endsWith('.json')) {
         // Parse GeoJSON
+        console.log('Parsing GeoJSON file:', fileName);
         const jsonString = new TextDecoder().decode(buffer);
         geoJSON = JSON.parse(jsonString);
+        console.log('GeoJSON features:', geoJSON?.features?.length || 0);
       } else {
         return NextResponse.json(
           { error: 'Unsupported file format. Please use KML, KMZ, or GeoJSON' },
@@ -157,8 +167,15 @@ export async function POST(req: NextRequest) {
       }
     } catch (parseError) {
       console.error('File parsing error:', parseError);
+      console.error('Error details:', {
+        message: parseError instanceof Error ? parseError.message : 'Unknown error',
+        stack: parseError instanceof Error ? parseError.stack : undefined,
+      });
       return NextResponse.json(
-        { error: 'Failed to parse file. Please ensure it is a valid format' },
+        {
+          error: 'Failed to parse file. Please ensure it is a valid format',
+          details: parseError instanceof Error ? parseError.message : 'Unknown error'
+        },
         { status: 400 }
       );
     }
