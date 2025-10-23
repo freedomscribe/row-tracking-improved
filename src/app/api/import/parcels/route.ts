@@ -12,61 +12,111 @@ function parseKML(kmlString: string): any {
   return toGeoJSON.kml(kmlDoc);
 }
 
+// Helper function to find property by various name variations (case-insensitive)
+function findProp(props: any, ...names: string[]): any {
+  for (const name of names) {
+    // Try exact match first
+    if (props[name] !== undefined && props[name] !== null && props[name] !== '') {
+      return props[name];
+    }
+    // Try case-insensitive match
+    const lowerName = name.toLowerCase();
+    const key = Object.keys(props).find(k => k.toLowerCase() === lowerName);
+    if (key && props[key] !== undefined && props[key] !== null && props[key] !== '') {
+      return props[key];
+    }
+  }
+  return null;
+}
+
 // Helper to extract parcel data from GeoJSON feature
 function extractParcelData(feature: any, projectId: string, sequence: number): any {
   const props = feature.properties || {};
   const geometry = feature.geometry;
 
-  // Try to find common property names for parcel information
-  const parcelNumber =
-    props.parcelNumber ||
-    props.PARCEL_NUM ||
-    props.ParcelNumber ||
-    props.parcel_number ||
-    props.APN ||
-    props.PIN ||
-    props.name ||
-    props.Name;
+  // Log all available properties for debugging
+  console.log(`Feature ${sequence} properties:`, Object.keys(props));
+  console.log(`Feature ${sequence} sample data:`, JSON.stringify(props).substring(0, 200));
 
-  const owner =
-    props.owner ||
-    props.Owner ||
-    props.OWNER ||
-    props.owner_name ||
-    props.OwnerName;
+  // Try to find common property names for parcel information (case-insensitive)
+  const parcelNumber = findProp(
+    props,
+    'parcelNumber', 'PARCEL_NUM', 'ParcelNumber', 'parcel_number',
+    'APN', 'PIN', 'parcel', 'Parcel', 'name', 'Name', 'PARCEL_NO'
+  );
 
-  const acreage =
-    props.acreage ||
-    props.ACREAGE ||
-    props.Acreage ||
-    props.acres ||
-    props.ACRES ||
-    props.area;
+  const owner = findProp(
+    props,
+    'owner', 'Owner', 'OWNER', 'owner_name', 'OwnerName', 'OWNER_NAME',
+    'owner1', 'Owner1', 'OWNER1', 'PropOwner', 'PROP_OWNER'
+  );
 
-  const county =
-    props.county ||
-    props.County ||
-    props.COUNTY ||
-    props.county_name;
+  const acreage = findProp(
+    props,
+    'acreage', 'ACREAGE', 'Acreage', 'acres', 'ACRES', 'Acres',
+    'area', 'AREA', 'Area', 'CALC_ACRES', 'GIS_ACRES', 'SHAPE_AREA'
+  );
 
-  const address =
-    props.address ||
-    props.Address ||
-    props.ADDRESS ||
-    props.situs_address ||
-    props.SitusAddress;
+  const county = findProp(
+    props,
+    'county', 'County', 'COUNTY', 'county_name', 'CountyName', 'COUNTY_NAME'
+  );
 
-  return {
+  const address = findProp(
+    props,
+    'address', 'Address', 'ADDRESS', 'situs_address', 'SitusAddress', 'SITUS_ADDRESS',
+    'situs', 'SITUS', 'site_address', 'SITE_ADDRESS', 'mail_address', 'MAIL_ADDRESS',
+    'owner_address', 'OWNER_ADDRESS'
+  );
+
+  const city = findProp(
+    props,
+    'city', 'City', 'CITY', 'owner_city', 'OWNER_CITY', 'situs_city', 'SITUS_CITY'
+  );
+
+  const state = findProp(
+    props,
+    'state', 'State', 'STATE', 'owner_state', 'OWNER_STATE', 'situs_state', 'SITUS_STATE'
+  );
+
+  const zip = findProp(
+    props,
+    'zip', 'ZIP', 'Zip', 'zipcode', 'ZIPCODE', 'ZipCode',
+    'owner_zip', 'OWNER_ZIP', 'situs_zip', 'SITUS_ZIP'
+  );
+
+  const legalDesc = findProp(
+    props,
+    'legal_desc', 'LEGAL_DESC', 'LegalDesc', 'legalDescription', 'LEGAL_DESCRIPTION',
+    'legal', 'LEGAL', 'description', 'Description', 'DESCRIPTION'
+  );
+
+  const parcelData = {
     projectId,
     parcelNumber: parcelNumber ? String(parcelNumber) : null,
     owner: owner ? String(owner) : null,
     ownerAddress: address ? String(address) : null,
+    ownerCity: city ? String(city) : null,
+    ownerState: state ? String(state) : null,
+    ownerZip: zip ? String(zip) : null,
+    legalDesc: legalDesc ? String(legalDesc) : null,
     county: county ? String(county) : null,
     acreage: acreage ? parseFloat(String(acreage)) : null,
     sequence,
     geometry,
     status: 'NOT_STARTED',
   };
+
+  // Log what was extracted
+  console.log(`Feature ${sequence} extracted:`, {
+    parcelNumber: parcelData.parcelNumber,
+    owner: parcelData.owner,
+    county: parcelData.county,
+    acreage: parcelData.acreage,
+    address: parcelData.ownerAddress,
+  });
+
+  return parcelData;
 }
 
 export async function POST(req: NextRequest) {
