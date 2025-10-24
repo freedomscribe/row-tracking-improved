@@ -6,25 +6,31 @@ import { updateProjectSchema } from '@/lib/validations';
 // GET /api/projects/[id] - Get a specific project
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
+    const { id } = await params;
+
     const project = await prisma.project.findFirst({
       where: {
-        id: params.id,
+        id: id,
         userId: session.user.id,
       },
       include: {
         parcels: {
-          orderBy: {
-            sequence: 'asc',
-          },
+          orderBy: [
+            { sequence: 'asc' },
+            { parcelNumber: 'asc' },
+          ],
+        },
+        _count: {
+          select: { parcels: true },
         },
       },
     });
@@ -46,32 +52,34 @@ export async function GET(
 // PATCH /api/projects/[id] - Update a project
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
+    const { id } = await params;
+
     // Verify ownership
     const existingProject = await prisma.project.findFirst({
       where: {
-        id: params.id,
+        id: id,
         userId: session.user.id,
       },
     });
-    
+
     if (!existingProject) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
-    
+
     const body = await req.json();
     const validatedData = updateProjectSchema.parse(body);
-    
+
     const project = await prisma.project.update({
-      where: { id: params.id },
+      where: { id: id },
       data: {
         ...validatedData,
         startDate: validatedData.startDate
@@ -101,30 +109,32 @@ export async function PATCH(
 // DELETE /api/projects/[id] - Delete a project
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
+    const { id } = await params;
+
     // Verify ownership
     const existingProject = await prisma.project.findFirst({
       where: {
-        id: params.id,
+        id: id,
         userId: session.user.id,
       },
     });
-    
+
     if (!existingProject) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
-    
+
     // Delete project (cascades to parcels, notes, documents)
     await prisma.project.delete({
-      where: { id: params.id },
+      where: { id: id },
     });
     
     return NextResponse.json({ message: 'Project deleted successfully' });

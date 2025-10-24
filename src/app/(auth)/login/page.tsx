@@ -1,3 +1,4 @@
+'use client';
 
 import { Box, Typography, Card, CardContent, Button, TextField, Divider } from '@mui/material';
 import { signIn } from 'next-auth/react';

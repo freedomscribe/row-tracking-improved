@@ -46,15 +46,25 @@ export async function POST(req: NextRequest) {
     }
     
     // Check subscription limits
-    const subscription = await prisma.subscription.findUnique({
+    let subscription = await prisma.subscription.findUnique({
       where: { userId: session.user.id },
     });
-    
+
+    // Auto-create FREE subscription if missing (safety fallback)
     if (!subscription) {
-      return NextResponse.json(
-        { error: 'No subscription found' },
-        { status: 400 }
-      );
+      console.log('No subscription found for user, creating FREE subscription');
+      subscription = await prisma.subscription.create({
+        data: {
+          userId: session.user.id,
+          stripeCustomerId: '', // Will be set when user subscribes
+          tier: 'FREE',
+          status: 'ACTIVE',
+          projectLimit: 2,
+          parcelLimitPerProject: 50,
+          userLimit: 1,
+          storageLimit: 0,
+        },
+      });
     }
     
     // Check project limit
@@ -76,8 +86,11 @@ export async function POST(req: NextRequest) {
     }
     
     const body = await req.json();
+    console.log('Received project data:', body);
+
     const validatedData = projectSchema.parse(body);
-    
+    console.log('Validated data:', validatedData);
+
     const project = await prisma.project.create({
       data: {
         ...validatedData,
@@ -92,11 +105,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ project }, { status: 201 });
   } catch (error) {
     console.error('Error creating project:', error);
-    
+
+    // Log full error details for debugging
     if (error instanceof Error) {
+      console.error('Error name:', error.name);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
       return NextResponse.json({ error: error.message }, { status: 400 });
     }
-    
+
     return NextResponse.json(
       { error: 'Failed to create project' },
       { status: 500 }

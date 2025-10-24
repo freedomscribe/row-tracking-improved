@@ -18,7 +18,7 @@ model User {
   id            String    @id @default(cuid())
   email         String    @unique
   name          String?
-  password      String    // Hashed with bcrypt
+  password      String?   // Hashed with bcrypt (optional for OAuth users)
   role          Role      @default(USER)
   emailVerified DateTime?
   image         String?

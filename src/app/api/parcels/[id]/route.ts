@@ -6,18 +6,20 @@ import { updateParcelSchema } from '@/lib/validations';
 // GET /api/parcels/[id] - Get a specific parcel
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
+    const { id } = await params;
+
     const parcel = await prisma.parcel.findFirst({
       where: {
-        id: params.id,
+        id: id,
         project: {
           userId: session.user.id,
         },
@@ -54,34 +56,36 @@ export async function GET(
 // PATCH /api/parcels/[id] - Update a parcel
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
+    const { id } = await params;
+
     // Verify ownership
     const existingParcel = await prisma.parcel.findFirst({
       where: {
-        id: params.id,
+        id: id,
         project: {
           userId: session.user.id,
         },
       },
     });
-    
+
     if (!existingParcel) {
       return NextResponse.json({ error: 'Parcel not found' }, { status: 404 });
     }
-    
+
     const body = await req.json();
     const validatedData = updateParcelSchema.parse(body);
-    
+
     const parcel = await prisma.parcel.update({
-      where: { id: params.id },
+      where: { id: id },
       data: validatedData,
     });
     
@@ -103,32 +107,34 @@ export async function PATCH(
 // DELETE /api/parcels/[id] - Delete a parcel
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const session = await auth();
-    
+
     if (!session?.user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
-    
+
+    const { id } = await params;
+
     // Verify ownership
     const existingParcel = await prisma.parcel.findFirst({
       where: {
-        id: params.id,
+        id: id,
         project: {
           userId: session.user.id,
         },
       },
     });
-    
+
     if (!existingParcel) {
       return NextResponse.json({ error: 'Parcel not found' }, { status: 404 });
     }
-    
+
     // Delete parcel (cascades to notes and documents)
     await prisma.parcel.delete({
-      where: { id: params.id },
+      where: { id: id },
     });
     
     return NextResponse.json({ message: 'Parcel deleted successfully' });

@@ -1,4 +1,3 @@
-'''
 "use client";
 
 import { useState } from 'react';
@@ -34,4 +33,3 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     </Box>
   );
 }
-'''
