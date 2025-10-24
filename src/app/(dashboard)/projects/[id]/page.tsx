@@ -51,12 +51,21 @@ const STATUSES = [
 interface Parcel {
   id: string;
   parcelNumber?: string | null;
+  pin?: string | null;
   owner?: string | null;
+  ownerAddress?: string | null;
+  ownerCity?: string | null;
+  ownerState?: string | null;
+  ownerZip?: string | null;
+  ownerPhone?: string | null;
+  ownerEmail?: string | null;
+  legalDesc?: string | null;
   status: string;
   geometry?: any;
   acreage?: number | null;
   county?: string | null;
   sequence?: number | null;
+  milepost?: number | null;
 }
 
 interface Project {
@@ -323,36 +332,29 @@ export default function ProjectDetailPage() {
         {selectedParcel && (
           <Paper
             sx={{
-              width: 350,
+              width: 400,
               flexShrink: 0,
-              p: 2,
+              p: 3,
               display: 'flex',
               flexDirection: 'column',
               overflow: 'auto',
             }}
           >
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 2 }}>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', mb: 3 }}>
               <Typography variant="h6">Parcel Details</Typography>
               <Button
                 size="small"
+                variant="outlined"
                 onClick={() => router.push(`/projects/${projectId}/parcels/${selectedParcel.id}/edit`)}
               >
                 Edit
               </Button>
             </Box>
 
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
+              {/* Status */}
               <Box>
-                <Typography variant="caption" color="text.secondary">
-                  Parcel Number
-                </Typography>
-                <Typography variant="body1">
-                  {selectedParcel.parcelNumber || 'N/A'}
-                </Typography>
-              </Box>
-
-              <Box>
-                <FormControl fullWidth size="small" sx={{ mt: 1 }}>
+                <FormControl fullWidth size="small">
                   <InputLabel>Status</InputLabel>
                   <Select
                     value={selectedParcel.status}
@@ -386,42 +388,128 @@ export default function ProjectDetailPage() {
                 </FormControl>
               </Box>
 
-              {selectedParcel.owner && (
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Owner
-                  </Typography>
-                  <Typography variant="body1">{selectedParcel.owner}</Typography>
-                </Box>
-              )}
+              <Divider />
 
-              {selectedParcel.county && (
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    County
-                  </Typography>
-                  <Typography variant="body1">{selectedParcel.county}</Typography>
-                </Box>
-              )}
+              {/* Parcel Identification */}
+              <Box>
+                <Typography variant="subtitle2" color="primary" gutterBottom>
+                  Parcel Identification
+                </Typography>
+                {selectedParcel.pin && (
+                  <Box sx={{ mb: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      PIN/RPC
+                    </Typography>
+                    <Typography variant="body2">{selectedParcel.pin}</Typography>
+                  </Box>
+                )}
+                {selectedParcel.parcelNumber && selectedParcel.parcelNumber !== selectedParcel.pin && (
+                  <Box sx={{ mb: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Parcel Number
+                    </Typography>
+                    <Typography variant="body2">{selectedParcel.parcelNumber}</Typography>
+                  </Box>
+                )}
+                {selectedParcel.sequence && (
+                  <Box sx={{ mb: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Sequence
+                    </Typography>
+                    <Typography variant="body2">{selectedParcel.sequence}</Typography>
+                  </Box>
+                )}
+              </Box>
 
-              {selectedParcel.acreage && (
-                <Box>
-                  <Typography variant="caption" color="text.secondary">
-                    Acreage
-                  </Typography>
-                  <Typography variant="body1">{selectedParcel.acreage} acres</Typography>
-                </Box>
-              )}
+              <Divider />
 
-              <Divider sx={{ my: 1 }} />
+              {/* Owner Information */}
+              <Box>
+                <Typography variant="subtitle2" color="primary" gutterBottom>
+                  Owner Information
+                </Typography>
+                {selectedParcel.owner && (
+                  <Box sx={{ mb: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Owner Name
+                    </Typography>
+                    <Typography variant="body2">{selectedParcel.owner}</Typography>
+                  </Box>
+                )}
+                {selectedParcel.ownerAddress && (
+                  <Box sx={{ mb: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Mailing Address
+                    </Typography>
+                    <Typography variant="body2">{selectedParcel.ownerAddress}</Typography>
+                    {(selectedParcel.ownerCity || selectedParcel.ownerState || selectedParcel.ownerZip) && (
+                      <Typography variant="body2">
+                        {selectedParcel.ownerCity && `${selectedParcel.ownerCity}, `}
+                        {selectedParcel.ownerState} {selectedParcel.ownerZip}
+                      </Typography>
+                    )}
+                  </Box>
+                )}
+                {selectedParcel.ownerPhone && (
+                  <Box sx={{ mb: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Phone
+                    </Typography>
+                    <Typography variant="body2">{selectedParcel.ownerPhone}</Typography>
+                  </Box>
+                )}
+                {selectedParcel.ownerEmail && (
+                  <Box sx={{ mb: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Email
+                    </Typography>
+                    <Typography variant="body2">{selectedParcel.ownerEmail}</Typography>
+                  </Box>
+                )}
+              </Box>
 
-              <Button
-                fullWidth
-                variant="outlined"
-                onClick={() => router.push(`/projects/${projectId}/parcels/${selectedParcel.id}`)}
-              >
-                View Full Details
-              </Button>
+              <Divider />
+
+              {/* Property Information */}
+              <Box>
+                <Typography variant="subtitle2" color="primary" gutterBottom>
+                  Property Information
+                </Typography>
+                {selectedParcel.county && (
+                  <Box sx={{ mb: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      County
+                    </Typography>
+                    <Typography variant="body2">{selectedParcel.county}</Typography>
+                  </Box>
+                )}
+                {selectedParcel.acreage && (
+                  <Box sx={{ mb: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Acreage
+                    </Typography>
+                    <Typography variant="body2">{selectedParcel.acreage} acres</Typography>
+                  </Box>
+                )}
+                {selectedParcel.milepost && (
+                  <Box sx={{ mb: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Milepost
+                    </Typography>
+                    <Typography variant="body2">{selectedParcel.milepost}</Typography>
+                  </Box>
+                )}
+                {selectedParcel.legalDesc && (
+                  <Box sx={{ mb: 1 }}>
+                    <Typography variant="caption" color="text.secondary">
+                      Property Details
+                    </Typography>
+                    <Typography variant="body2" sx={{ whiteSpace: 'pre-line' }}>
+                      {selectedParcel.legalDesc}
+                    </Typography>
+                  </Box>
+                )}
+              </Box>
             </Box>
           </Paper>
         )}
