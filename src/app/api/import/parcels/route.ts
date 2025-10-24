@@ -93,67 +93,109 @@ function extractParcelData(feature: any, projectId: string, sequence: number): a
   }
 
   // Try to find common property names for parcel information (case-insensitive)
+  // For Tax Map Number
   const parcelNumber = findProp(
     props,
+    'Tax Map #', 'TaxMap', 'TAX_MAP', 'Tax Map', 'TAXMAP',
     'parcelNumber', 'PARCEL_NUM', 'ParcelNumber', 'parcel_number',
-    'APN', 'PIN', 'parcel', 'Parcel', 'name', 'Name', 'PARCEL_NO'
+    'APN', 'parcel', 'Parcel', 'name', 'Name', 'PARCEL_NO'
   );
 
+  // For RPC or PIN
+  const pin = findProp(
+    props,
+    'RPC', 'PIN', 'ParcelID', 'PARCEL_ID', 'Parcel ID'
+  );
+
+  // For Owner
   const owner = findProp(
     props,
-    'owner', 'Owner', 'OWNER', 'owner_name', 'OwnerName', 'OWNER_NAME',
+    'Owner', 'OWNER', 'owner', 'owner_name', 'OwnerName', 'OWNER_NAME',
     'owner1', 'Owner1', 'OWNER1', 'PropOwner', 'PROP_OWNER'
   );
 
+  // For Legal Acres (acreage)
   const acreage = findProp(
     props,
+    'Legal Acres', 'LegalAcres', 'LEGAL_ACRES',
     'acreage', 'ACREAGE', 'Acreage', 'acres', 'ACRES', 'Acres',
     'area', 'AREA', 'Area', 'CALC_ACRES', 'GIS_ACRES', 'SHAPE_AREA'
   );
 
-  const county = findProp(
+  // For County (might include state info like "Bedford County, VA")
+  const countyRaw = findProp(
     props,
     'county', 'County', 'COUNTY', 'county_name', 'CountyName', 'COUNTY_NAME'
   );
 
-  const address = findProp(
+  // Extract county and state if format is "County Name, ST"
+  let county = countyRaw;
+  let state = null;
+  if (countyRaw && countyRaw.includes(',')) {
+    const parts = countyRaw.split(',');
+    county = parts[0].trim();
+    state = parts[1].trim();
+  }
+
+  // For Owner Address (mailing address)
+  const ownerAddress = findProp(
     props,
-    'address', 'Address', 'ADDRESS', 'situs_address', 'SitusAddress', 'SITUS_ADDRESS',
-    'situs', 'SITUS', 'site_address', 'SITE_ADDRESS', 'mail_address', 'MAIL_ADDRESS',
-    'owner_address', 'OWNER_ADDRESS'
+    'Owner Address', 'OwnerAddress', 'OWNER_ADDRESS', 'owner address',
+    'mail_address', 'MAIL_ADDRESS', 'MailAddress', 'mailing_address'
   );
 
-  const city = findProp(
-    props,
-    'city', 'City', 'CITY', 'owner_city', 'OWNER_CITY', 'situs_city', 'SITUS_CITY'
-  );
+  // Parse owner address to extract city, state, zip if it's a full address
+  let ownerCity = null;
+  let ownerState = state; // Use state from county if available
+  let ownerZip = null;
 
-  const state = findProp(
-    props,
-    'state', 'State', 'STATE', 'owner_state', 'OWNER_STATE', 'situs_state', 'SITUS_STATE'
-  );
+  if (ownerAddress && typeof ownerAddress === 'string') {
+    // Try to extract city, state, zip from address like "PO BOX 964 LYNCHBURG, VA 24505"
+    const addressMatch = ownerAddress.match(/,?\s*([A-Z\s]+),?\s+([A-Z]{2})\s+(\d{5})/i);
+    if (addressMatch) {
+      ownerCity = addressMatch[1].trim();
+      ownerState = addressMatch[2].trim();
+      ownerZip = addressMatch[3].trim();
+    }
+  }
 
-  const zip = findProp(
-    props,
-    'zip', 'ZIP', 'Zip', 'zipcode', 'ZIPCODE', 'ZipCode',
-    'owner_zip', 'OWNER_ZIP', 'situs_zip', 'SITUS_ZIP'
-  );
+  // Also check for separate city, state, zip fields
+  if (!ownerCity) {
+    ownerCity = findProp(props, 'city', 'City', 'CITY', 'owner_city', 'OWNER_CITY');
+  }
+  if (!ownerState) {
+    ownerState = findProp(props, 'state', 'State', 'STATE', 'owner_state', 'OWNER_STATE');
+  }
+  if (!ownerZip) {
+    ownerZip = findProp(props, 'zip', 'ZIP', 'Zip', 'zipcode', 'ZIPCODE', 'ZipCode', 'owner_zip', 'OWNER_ZIP');
+  }
 
-  const legalDesc = findProp(
-    props,
-    'legal_desc', 'LEGAL_DESC', 'LegalDesc', 'legalDescription', 'LEGAL_DESCRIPTION',
-    'legal', 'LEGAL', 'description', 'Description', 'DESCRIPTION'
-  );
+  // Build comprehensive legal description
+  const propertyAddress = findProp(props, 'Property Address', 'PropertyAddress', 'PROPERTY_ADDRESS', 'Situs', 'SITUS');
+  const legalDescription = findProp(props, 'Legal Description', 'LegalDescription', 'LEGAL_DESCRIPTION', 'legal_desc', 'LEGAL_DESC');
+  const pcDescription = findProp(props, 'PC Description', 'PCDescription', 'PC_DESCRIPTION');
+  const deedBook = findProp(props, 'Deed Book/Page', 'DeedBook', 'DEED_BOOK', 'Document');
+
+  // Combine all legal/property info into legalDesc field
+  const legalDescParts = [];
+  if (propertyAddress) legalDescParts.push(`Property: ${propertyAddress}`);
+  if (legalDescription) legalDescParts.push(`Legal: ${legalDescription}`);
+  if (pcDescription) legalDescParts.push(`Type: ${pcDescription}`);
+  if (pin) legalDescParts.push(`RPC: ${pin}`);
+  if (deedBook) legalDescParts.push(`Document: ${deedBook}`);
+
+  const combinedLegalDesc = legalDescParts.length > 0 ? legalDescParts.join(' | ') : null;
 
   const parcelData = {
     projectId,
     parcelNumber: parcelNumber ? String(parcelNumber) : null,
+    pin: pin ? String(pin) : null,
     owner: owner ? String(owner) : null,
-    ownerAddress: address ? String(address) : null,
-    ownerCity: city ? String(city) : null,
-    ownerState: state ? String(state) : null,
-    ownerZip: zip ? String(zip) : null,
-    legalDesc: legalDesc ? String(legalDesc) : null,
+    ownerAddress: ownerAddress ? String(ownerAddress) : null,
+    ownerCity: ownerCity ? String(ownerCity) : null,
+    ownerState: ownerState ? String(ownerState) : null,
+    ownerZip: ownerZip ? String(ownerZip) : null,
+    legalDesc: combinedLegalDesc,
     county: county ? String(county) : null,
     acreage: acreage ? parseFloat(String(acreage)) : null,
     sequence,
@@ -164,10 +206,14 @@ function extractParcelData(feature: any, projectId: string, sequence: number): a
   // Log what was extracted
   console.log(`Feature ${sequence} extracted:`, {
     parcelNumber: parcelData.parcelNumber,
+    pin: parcelData.pin,
     owner: parcelData.owner,
     county: parcelData.county,
     acreage: parcelData.acreage,
-    address: parcelData.ownerAddress,
+    ownerAddress: parcelData.ownerAddress,
+    ownerCity: parcelData.ownerCity,
+    ownerState: parcelData.ownerState,
+    legalDesc: parcelData.legalDesc?.substring(0, 100),
   });
 
   return parcelData;
