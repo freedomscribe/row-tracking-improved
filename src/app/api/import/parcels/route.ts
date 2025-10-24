@@ -116,8 +116,15 @@ function extractParcelData(feature: any, projectId: string, sequence: number): a
   const propLocation = findProp(props, 'locaddr', 'LOCADDR', 'location', 'LOCATION', 'situs', 'SITUS');
   console.log('Property Location:', propLocation);
 
-  // Build minimal legal description with property location
-  const legalDesc = propLocation ? `Property: ${propLocation}` : null;
+  // 6. ZONING / PROPERTY CLASS (residential, commercial, etc.)
+  const zoning = findProp(props, 'pcdesc', 'PCDESC', 'propclass', 'PROPCLASS', 'zoning', 'ZONING', 'class', 'CLASS');
+  console.log('Zoning/Property Class:', zoning);
+
+  // Build legal description with property location and zoning
+  const legalDescParts = [];
+  if (propLocation) legalDescParts.push(`Location: ${propLocation}`);
+  if (zoning) legalDescParts.push(`Zoning: ${zoning}`);
+  const legalDesc = legalDescParts.length > 0 ? legalDescParts.join(' | ') : null;
 
   const parcelData = {
     projectId,
