@@ -78,173 +78,73 @@ function extractParcelData(feature: any, projectId: string, sequence: number): a
   let props = feature.properties || {};
   const geometry = feature.geometry;
 
-  // Log all available properties for debugging
-  console.log(`Feature ${sequence} properties:`, Object.keys(props));
-  console.log(`Feature ${sequence} sample data:`, JSON.stringify(props).substring(0, 200));
-
   // If there's a description field with HTML, parse it and merge with existing props
   const description = props.description || props.Description || props.DESCRIPTION;
   if (description && (description.includes('<') || description.includes('table'))) {
-    console.log(`Feature ${sequence} has HTML description, parsing...`);
     const parsedData = parseHTMLDescription(description);
-    // Merge parsed data with existing props (existing props take precedence)
-    props = { ...parsedData, ...props };
-    console.log(`Feature ${sequence} after parsing description:`, Object.keys(props));
+    // Merge parsed data with existing props (parsed data has priority for Bedford County)
+    props = { ...props, ...parsedData };
   }
 
-  // Try to find common property names for parcel information (case-insensitive)
-  // For Tax Map Number
-  const parcelNumber = findProp(
-    props,
-    'Tax Map #', 'TaxMap', 'TAX_MAP', 'Tax Map', 'TAXMAP',
-    'parcelNumber', 'PARCEL_NUM', 'ParcelNumber', 'parcel_number',
-    'APN', 'parcel', 'Parcel', 'name', 'Name', 'PARCEL_NO'
-  );
+  // STREAMLINED EXTRACTION - Only essential fields for ROW tracking
+  console.log(`\n=== Feature ${sequence} ===`);
+  console.log('Available fields:', Object.keys(props).slice(0, 20).join(', '));
 
-  // For RPC or PIN
-  const pin = findProp(
-    props,
-    'RPC', 'PIN', 'ParcelID', 'PARCEL_ID', 'Parcel ID'
-  );
+  // 1. PARCEL ID - Try PIN/RPC first (most important for tax records)
+  const pin = findProp(props, 'pin', 'PIN', 'rpc', 'RPC', 'gpin', 'GPIN');
+  console.log('PIN/RPC:', pin);
 
-  // For Owner
-  const owner = findProp(
-    props,
-    'Owner', 'OWNER', 'owner', 'owner_name', 'OwnerName', 'OWNER_NAME',
-    'owner1', 'Owner1', 'OWNER1', 'PropOwner', 'PROP_OWNER'
-  );
+  // 2. OWNER NAME
+  const owner = findProp(props, 'owner1', 'OWNER1', 'owner', 'OWNER', 'ownername', 'OWNERNAME');
+  console.log('Owner:', owner);
 
-  // For Legal Acres (acreage)
-  const acreage = findProp(
-    props,
-    'legalac', 'LEGALAC', 'LegalAc', // Bedford County GIS
-    'Legal Acres', 'LegalAcres', 'LEGAL_ACRES',
-    'acreage', 'ACREAGE', 'Acreage', 'acres', 'ACRES', 'Acres',
-    'area', 'AREA', 'Area', 'CALC_ACRES', 'GIS_ACRES', 'SHAPE_AREA'
-  );
+  // 3. MAILING ADDRESS (where to send correspondence)
+  const mailAddr = findProp(props, 'mailaddr', 'MAILADDR', 'mail_address', 'MAIL_ADDRESS');
+  const mailCity = findProp(props, 'mailcity', 'MAILCITY', 'mail_city', 'MAIL_CITY');
+  const mailState = findProp(props, 'mailstat', 'MAILSTAT', 'mailstate', 'MAILSTATE', 'mail_state', 'MAIL_STATE');
+  const mailZip = findProp(props, 'mailzip', 'MAILZIP', 'mail_zip', 'MAIL_ZIP');
+  console.log('Mailing Address:', mailAddr);
+  console.log('City:', mailCity);
+  console.log('State:', mailState);
+  console.log('ZIP:', mailZip);
 
-  // For County (might include state info like "Bedford County, VA")
-  const countyRaw = findProp(
-    props,
-    'county', 'County', 'COUNTY', 'county_name', 'CountyName', 'COUNTY_NAME'
-  );
+  // 4. ACREAGE
+  const acreage = findProp(props, 'legalac', 'LEGALAC', 'acreage', 'ACREAGE', 'acres', 'ACRES');
+  console.log('Acreage:', acreage);
 
-  // Extract county and state if format is "County Name, ST"
-  let county = countyRaw;
-  let state = null;
-  if (countyRaw && countyRaw.includes(',')) {
-    const parts = countyRaw.split(',');
-    county = parts[0].trim();
-    state = parts[1].trim();
-  }
+  // 5. PROPERTY LOCATION (optional - for reference in legalDesc)
+  const propLocation = findProp(props, 'locaddr', 'LOCADDR', 'location', 'LOCATION', 'situs', 'SITUS');
+  console.log('Property Location:', propLocation);
 
-  // For Owner Address (mailing address) - check Bedford County fields first
-  const ownerAddress = findProp(
-    props,
-    'mailaddr', 'MAILADDR', 'MailAddr', // Bedford County GIS
-    'Owner Address', 'OwnerAddress', 'OWNER_ADDRESS', 'owner address',
-    'mail_address', 'MAIL_ADDRESS', 'MailAddress', 'mailing_address'
-  );
-
-  // Parse owner address to extract city, state, zip if it's a full address
-  let ownerCity = null;
-  let ownerState = state; // Use state from county if available
-  let ownerZip = null;
-
-  // Check for separate city, state, zip fields first (Bedford County GIS)
-  ownerCity = findProp(
-    props,
-    'mailcity', 'MAILCITY', 'MailCity', // Bedford County GIS
-    'city', 'City', 'CITY', 'owner_city', 'OWNER_CITY'
-  );
-
-  ownerState = findProp(
-    props,
-    'mailstat', 'MAILSTAT', 'MailStat', 'MailState', // Bedford County GIS
-    'state', 'State', 'STATE', 'owner_state', 'OWNER_STATE'
-  );
-
-  ownerZip = findProp(
-    props,
-    'mailzip', 'MAILZIP', 'MailZip', // Bedford County GIS
-    'zip', 'ZIP', 'Zip', 'zipcode', 'ZIPCODE', 'ZipCode', 'owner_zip', 'OWNER_ZIP'
-  );
-
-  // If city, state, zip not found separately, try to extract from address
-  if (ownerAddress && typeof ownerAddress === 'string' && (!ownerCity || !ownerState || !ownerZip)) {
-    // Try to extract city, state, zip from address like "PO BOX 964 LYNCHBURG, VA 24505"
-    const addressMatch = ownerAddress.match(/,?\s*([A-Z\s]+),?\s+([A-Z]{2})\s+(\d{5})/i);
-    if (addressMatch) {
-      if (!ownerCity) ownerCity = addressMatch[1].trim();
-      if (!ownerState) ownerState = addressMatch[2].trim();
-      if (!ownerZip) ownerZip = addressMatch[3].trim();
-    }
-  }
-
-  // Build comprehensive legal description - check Bedford County fields first
-  const propertyAddress = findProp(
-    props,
-    'locaddr', 'LOCADDR', 'LocAddr', // Bedford County GIS
-    'Property Address', 'PropertyAddress', 'PROPERTY_ADDRESS', 'Situs', 'SITUS'
-  );
-
-  const legalDescription = findProp(
-    props,
-    'legal1', 'LEGAL1', 'legal_desc', 'LEGAL_DESC', // Bedford County GIS
-    'Legal Description', 'LegalDescription', 'LEGAL_DESCRIPTION'
-  );
-
-  const pcDescription = findProp(
-    props,
-    'pcdesc', 'PCDESC', 'PCDesc', // Bedford County GIS
-    'PC Description', 'PCDescription', 'PC_DESCRIPTION'
-  );
-
-  const deedBook = findProp(
-    props,
-    'document', 'DOCUMENT', 'Document', // Bedford County GIS
-    'Deed Book/Page', 'DeedBook', 'DEED_BOOK'
-  );
-
-  // Combine all legal/property info into legalDesc field
-  const legalDescParts = [];
-  if (propertyAddress) legalDescParts.push(`Property: ${propertyAddress}`);
-  if (legalDescription) legalDescParts.push(`Legal: ${legalDescription}`);
-  if (pcDescription) legalDescParts.push(`Type: ${pcDescription}`);
-  if (pin) legalDescParts.push(`RPC: ${pin}`);
-  if (deedBook) legalDescParts.push(`Document: ${deedBook}`);
-
-  const combinedLegalDesc = legalDescParts.length > 0 ? legalDescParts.join(' | ') : null;
+  // Build minimal legal description with property location
+  const legalDesc = propLocation ? `Property: ${propLocation}` : null;
 
   const parcelData = {
     projectId,
-    parcelNumber: parcelNumber ? String(parcelNumber) : null,
-    pin: pin ? String(pin) : null,
-    owner: owner ? String(owner) : null,
-    ownerAddress: ownerAddress ? String(ownerAddress) : null,
-    ownerCity: ownerCity ? String(ownerCity) : null,
-    ownerState: ownerState ? String(ownerState) : null,
-    ownerZip: ownerZip ? String(ownerZip) : null,
-    legalDesc: combinedLegalDesc,
-    county: county ? String(county) : null,
+    parcelNumber: pin ? String(pin).trim() : null,
+    pin: pin ? String(pin).trim() : null,
+    owner: owner ? String(owner).trim() : null,
+    ownerAddress: mailAddr ? String(mailAddr).trim() : null,
+    ownerCity: mailCity ? String(mailCity).trim() : null,
+    ownerState: mailState ? String(mailState).trim() : null,
+    ownerZip: mailZip ? String(mailZip).trim() : null,
+    legalDesc: legalDesc,
+    county: 'Bedford', // Hardcode for Bedford County
     acreage: acreage ? parseFloat(String(acreage)) : null,
     sequence,
     geometry,
     status: 'NOT_STARTED',
   };
 
-  // Log what was extracted
-  console.log(`Feature ${sequence} extracted:`, {
-    parcelNumber: parcelData.parcelNumber,
+  console.log('FINAL EXTRACTED DATA:', JSON.stringify({
     pin: parcelData.pin,
     owner: parcelData.owner,
-    county: parcelData.county,
-    acreage: parcelData.acreage,
     ownerAddress: parcelData.ownerAddress,
     ownerCity: parcelData.ownerCity,
     ownerState: parcelData.ownerState,
-    legalDesc: parcelData.legalDesc?.substring(0, 100),
-  });
+    ownerZip: parcelData.ownerZip,
+    acreage: parcelData.acreage,
+  }, null, 2));
 
   return parcelData;
 }
