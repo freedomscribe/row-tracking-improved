@@ -117,6 +117,7 @@ function extractParcelData(feature: any, projectId: string, sequence: number): a
   // For Legal Acres (acreage)
   const acreage = findProp(
     props,
+    'legalac', 'LEGALAC', 'LegalAc', // Bedford County GIS
     'Legal Acres', 'LegalAcres', 'LEGAL_ACRES',
     'acreage', 'ACREAGE', 'Acreage', 'acres', 'ACRES', 'Acres',
     'area', 'AREA', 'Area', 'CALC_ACRES', 'GIS_ACRES', 'SHAPE_AREA'
@@ -137,9 +138,10 @@ function extractParcelData(feature: any, projectId: string, sequence: number): a
     state = parts[1].trim();
   }
 
-  // For Owner Address (mailing address)
+  // For Owner Address (mailing address) - check Bedford County fields first
   const ownerAddress = findProp(
     props,
+    'mailaddr', 'MAILADDR', 'MailAddr', // Bedford County GIS
     'Owner Address', 'OwnerAddress', 'OWNER_ADDRESS', 'owner address',
     'mail_address', 'MAIL_ADDRESS', 'MailAddress', 'mailing_address'
   );
@@ -149,32 +151,60 @@ function extractParcelData(feature: any, projectId: string, sequence: number): a
   let ownerState = state; // Use state from county if available
   let ownerZip = null;
 
-  if (ownerAddress && typeof ownerAddress === 'string') {
+  // Check for separate city, state, zip fields first (Bedford County GIS)
+  ownerCity = findProp(
+    props,
+    'mailcity', 'MAILCITY', 'MailCity', // Bedford County GIS
+    'city', 'City', 'CITY', 'owner_city', 'OWNER_CITY'
+  );
+
+  ownerState = findProp(
+    props,
+    'mailstat', 'MAILSTAT', 'MailStat', 'MailState', // Bedford County GIS
+    'state', 'State', 'STATE', 'owner_state', 'OWNER_STATE'
+  );
+
+  ownerZip = findProp(
+    props,
+    'mailzip', 'MAILZIP', 'MailZip', // Bedford County GIS
+    'zip', 'ZIP', 'Zip', 'zipcode', 'ZIPCODE', 'ZipCode', 'owner_zip', 'OWNER_ZIP'
+  );
+
+  // If city, state, zip not found separately, try to extract from address
+  if (ownerAddress && typeof ownerAddress === 'string' && (!ownerCity || !ownerState || !ownerZip)) {
     // Try to extract city, state, zip from address like "PO BOX 964 LYNCHBURG, VA 24505"
     const addressMatch = ownerAddress.match(/,?\s*([A-Z\s]+),?\s+([A-Z]{2})\s+(\d{5})/i);
     if (addressMatch) {
-      ownerCity = addressMatch[1].trim();
-      ownerState = addressMatch[2].trim();
-      ownerZip = addressMatch[3].trim();
+      if (!ownerCity) ownerCity = addressMatch[1].trim();
+      if (!ownerState) ownerState = addressMatch[2].trim();
+      if (!ownerZip) ownerZip = addressMatch[3].trim();
     }
   }
 
-  // Also check for separate city, state, zip fields
-  if (!ownerCity) {
-    ownerCity = findProp(props, 'city', 'City', 'CITY', 'owner_city', 'OWNER_CITY');
-  }
-  if (!ownerState) {
-    ownerState = findProp(props, 'state', 'State', 'STATE', 'owner_state', 'OWNER_STATE');
-  }
-  if (!ownerZip) {
-    ownerZip = findProp(props, 'zip', 'ZIP', 'Zip', 'zipcode', 'ZIPCODE', 'ZipCode', 'owner_zip', 'OWNER_ZIP');
-  }
+  // Build comprehensive legal description - check Bedford County fields first
+  const propertyAddress = findProp(
+    props,
+    'locaddr', 'LOCADDR', 'LocAddr', // Bedford County GIS
+    'Property Address', 'PropertyAddress', 'PROPERTY_ADDRESS', 'Situs', 'SITUS'
+  );
 
-  // Build comprehensive legal description
-  const propertyAddress = findProp(props, 'Property Address', 'PropertyAddress', 'PROPERTY_ADDRESS', 'Situs', 'SITUS');
-  const legalDescription = findProp(props, 'Legal Description', 'LegalDescription', 'LEGAL_DESCRIPTION', 'legal_desc', 'LEGAL_DESC');
-  const pcDescription = findProp(props, 'PC Description', 'PCDescription', 'PC_DESCRIPTION');
-  const deedBook = findProp(props, 'Deed Book/Page', 'DeedBook', 'DEED_BOOK', 'Document');
+  const legalDescription = findProp(
+    props,
+    'legal1', 'LEGAL1', 'legal_desc', 'LEGAL_DESC', // Bedford County GIS
+    'Legal Description', 'LegalDescription', 'LEGAL_DESCRIPTION'
+  );
+
+  const pcDescription = findProp(
+    props,
+    'pcdesc', 'PCDESC', 'PCDesc', // Bedford County GIS
+    'PC Description', 'PCDescription', 'PC_DESCRIPTION'
+  );
+
+  const deedBook = findProp(
+    props,
+    'document', 'DOCUMENT', 'Document', // Bedford County GIS
+    'Deed Book/Page', 'DeedBook', 'DEED_BOOK'
+  );
 
   // Combine all legal/property info into legalDesc field
   const legalDescParts = [];

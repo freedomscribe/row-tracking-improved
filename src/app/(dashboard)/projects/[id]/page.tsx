@@ -18,6 +18,10 @@ import {
   Alert,
   TextField,
   InputAdornment,
+  Select,
+  MenuItem,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -35,6 +39,14 @@ const ParcelMap = dynamic(() => import('@/components/map/ParcelMap'), {
   ssr: false,
   loading: () => <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}><CircularProgress /></Box>,
 });
+
+const STATUSES = [
+  { value: 'NOT_STARTED', label: 'Not Started' },
+  { value: 'IN_PROGRESS', label: 'In Progress' },
+  { value: 'ACQUIRED', label: 'Acquired' },
+  { value: 'CONDEMNED', label: 'Condemned' },
+  { value: 'RELOCATED', label: 'Relocated' },
+];
 
 interface Parcel {
   id: string;
@@ -91,11 +103,31 @@ export default function ProjectDetailPage() {
     },
   });
 
+  // Update parcel status mutation
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ parcelId, status }: { parcelId: string; status: string }) => {
+      const res = await fetch(`/api/parcels/${parcelId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (!res.ok) throw new Error('Failed to update status');
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+    },
+  });
+
   const handleDeleteParcel = (parcelId: string, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent selecting the parcel when clicking delete
     if (window.confirm('Are you sure you want to delete this parcel?')) {
       deleteParcelMutation.mutate(parcelId);
     }
+  };
+
+  const handleStatusChange = (parcelId: string, newStatus: string) => {
+    updateStatusMutation.mutate({ parcelId, status: newStatus });
   };
 
   if (isLoading) {
@@ -320,19 +352,38 @@ export default function ProjectDetailPage() {
               </Box>
 
               <Box>
-                <Typography variant="caption" color="text.secondary">
-                  Status
-                </Typography>
-                <Chip
-                  label={selectedParcel.status.replace('_', ' ')}
-                  size="small"
-                  sx={{
-                    bgcolor: getStatusColor(selectedParcel.status),
-                    color: 'white',
-                    fontWeight: 'bold',
-                    mt: 0.5,
-                  }}
-                />
+                <FormControl fullWidth size="small" sx={{ mt: 1 }}>
+                  <InputLabel>Status</InputLabel>
+                  <Select
+                    value={selectedParcel.status}
+                    label="Status"
+                    onChange={(e) => handleStatusChange(selectedParcel.id, e.target.value)}
+                    disabled={updateStatusMutation.isPending}
+                    sx={{
+                      '& .MuiSelect-select': {
+                        bgcolor: getStatusColor(selectedParcel.status),
+                        color: 'white',
+                        fontWeight: 'bold',
+                      },
+                    }}
+                  >
+                    {STATUSES.map((status) => (
+                      <MenuItem key={status.value} value={status.value}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Box
+                            sx={{
+                              width: 12,
+                              height: 12,
+                              borderRadius: '50%',
+                              bgcolor: getStatusColor(status.value),
+                            }}
+                          />
+                          {status.label}
+                        </Box>
+                      </MenuItem>
+                    ))}
+                  </Select>
+                </FormControl>
               </Box>
 
               {selectedParcel.owner && (
