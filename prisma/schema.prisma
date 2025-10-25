@@ -142,26 +142,27 @@ model Project {
 }
 
 model Parcel {
-  id           String       @id @default(cuid())
-  projectId    String
-  parcelNumber String?
-  pin          String?
-  owner        String?
-  ownerAddress String?
-  ownerCity    String?
-  ownerState   String?
-  ownerZip     String?
-  ownerPhone   String?
-  ownerEmail   String?
-  legalDesc    String?
-  county       String?
-  status       ParcelStatus @default(NOT_STARTED)
-  sequence     Int?
-  milepost     Float?
-  geometry     Json?        // GeoJSON geometry
-  acreage      Float?
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  id                String       @id @default(cuid())
+  projectId         String
+  parcelNumber      String?
+  pin               String?
+  owner             String?
+  ownerAddress      String?
+  ownerCity         String?
+  ownerState        String?
+  ownerZip          String?
+  ownerPhone        String?
+  ownerEmail        String?
+  legalDesc         String?
+  county            String?
+  acquisitionStatus ParcelStatus @default(NOT_STARTED) @map("status") // Renamed for clarity
+  titleStatus       TitleStatus  @default(NOT_STARTED)
+  sequence          Int?
+  milepost          Float?
+  geometry          Json?        // GeoJSON geometry
+  acreage           Float?
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
   // Relations
   project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -169,7 +170,8 @@ model Parcel {
   documents Document[]
 
   @@index([projectId])
-  @@index([status])
+  @@index([acquisitionStatus])
+  @@index([titleStatus])
   @@index([county])
   @@map("parcels")
 }
@@ -212,5 +214,13 @@ enum ParcelStatus {
   ACQUIRED
   CONDEMNED
   RELOCATED
+}
+
+enum TitleStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETE
+  CURATIVE
+  HOLD
 }
 

@@ -142,7 +142,7 @@ export default function EditParcelPage() {
       });
 
       if (response.ok) {
-        router.push(`/projects/${projectId}/parcels/${parcelId}`);
+        router.push(`/projects/${projectId}`);
       } else {
         const error = await response.json();
         setSaveError(error.error || 'Failed to update parcel');
@@ -178,10 +178,10 @@ export default function EditParcelPage() {
     <Box>
       <Button
         startIcon={<ArrowBackIcon />}
-        onClick={() => router.push(`/projects/${projectId}/parcels/${parcelId}`)}
+        onClick={() => router.push(`/projects/${projectId}`)}
         sx={{ mb: 2 }}
       >
-        Back to Parcel Details
+        Back to Project
       </Button>
 
       <Typography variant="h4" gutterBottom>
@@ -396,7 +396,7 @@ export default function EditParcelPage() {
                 </Button>
                 <Button
                   variant="outlined"
-                  onClick={() => router.push(`/projects/${projectId}/parcels/${parcelId}`)}
+                  onClick={() => router.push(`/projects/${projectId}`)}
                   disabled={saving}
                 >
                   Cancel

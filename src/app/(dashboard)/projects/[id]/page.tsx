@@ -57,12 +57,20 @@ const ParcelMap = dynamic(() => import('@/components/map/ParcelMap'), {
   loading: () => <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%' }}><CircularProgress /></Box>,
 });
 
-const STATUSES = [
+const ACQUISITION_STATUSES = [
   { value: 'NOT_STARTED', label: 'Not Started', icon: HourglassEmptyIcon },
   { value: 'IN_PROGRESS', label: 'In Progress', icon: PendingActionsIcon },
   { value: 'ACQUIRED', label: 'Acquired', icon: CheckCircleIcon },
   { value: 'CONDEMNED', label: 'Condemned', icon: GavelIcon },
   { value: 'RELOCATED', label: 'Relocated', icon: DriveFileMoveIcon },
+];
+
+const TITLE_STATUSES = [
+  { value: 'NOT_STARTED', label: 'Not Started', icon: HourglassEmptyIcon },
+  { value: 'IN_PROGRESS', label: 'In Progress', icon: PendingActionsIcon },
+  { value: 'COMPLETE', label: 'Complete', icon: CheckCircleIcon },
+  { value: 'CURATIVE', label: 'Curative', icon: GavelIcon },
+  { value: 'HOLD', label: 'Hold', icon: PendingActionsIcon },
 ];
 
 interface Parcel {
@@ -77,12 +85,16 @@ interface Parcel {
   ownerPhone?: string | null;
   ownerEmail?: string | null;
   legalDesc?: string | null;
-  status: string;
+  acquisitionStatus?: string;
+  titleStatus?: string;
+  status?: string; // Keep for backward compatibility
   geometry?: any;
   acreage?: number | null;
   county?: string | null;
   sequence?: number | null;
   milepost?: number | null;
+  notes?: any[];
+  documents?: any[];
 }
 
 interface Project {
@@ -141,19 +153,27 @@ export default function ProjectDetailPage() {
 
   // Update parcel status mutation
   const updateStatusMutation = useMutation({
-    mutationFn: async ({ parcelId, status }: { parcelId: string; status: string }) => {
+    mutationFn: async ({ parcelId, status, statusType }: { parcelId: string; status: string; statusType?: string }) => {
+      const body = statusType === 'title'
+        ? { titleStatus: status }
+        : statusType === 'acquisition'
+        ? { acquisitionStatus: status }
+        : { status }; // Fallback for backward compatibility
+
       const res = await fetch(`/api/parcels/${parcelId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
+        body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error('Failed to update status');
       return res.json();
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['project', projectId] });
-      const statusLabel = STATUSES.find(s => s.value === variables.status)?.label || variables.status;
-      setSnackbar({ open: true, message: `Status updated to ${statusLabel}` });
+      const statuses = variables.statusType === 'title' ? TITLE_STATUSES : ACQUISITION_STATUSES;
+      const statusLabel = statuses.find(s => s.value === variables.status)?.label || variables.status;
+      const statusType = variables.statusType === 'title' ? 'Title' : 'Acquisition';
+      setSnackbar({ open: true, message: `${statusType} status updated to ${statusLabel}` });
     },
   });
 
@@ -173,8 +193,8 @@ export default function ProjectDetailPage() {
     setDeleteDialog({ open: false, parcelId: null, parcelName: '' });
   };
 
-  const handleStatusChange = (parcelId: string, newStatus: string) => {
-    updateStatusMutation.mutate({ parcelId, status: newStatus });
+  const handleStatusChange = (parcelId: string, newStatus: string, statusType: 'acquisition' | 'title' = 'acquisition') => {
+    updateStatusMutation.mutate({ parcelId, status: newStatus, statusType });
   };
 
   // Bulk update mutation
@@ -368,9 +388,9 @@ export default function ProjectDetailPage() {
               }}
             />
 
-            {/* Status Filter Chips */}
+            {/* Acquisition Status Filter Chips */}
             <Box sx={{ display: 'flex', gap: 0.5, mt: 1.5, flexWrap: 'wrap' }}>
-              {STATUSES.map((status) => {
+              {ACQUISITION_STATUSES.map((status) => {
                 const StatusIcon = status.icon;
                 const isActive = statusFilter.includes(status.value);
                 return (
@@ -551,29 +571,63 @@ export default function ProjectDetailPage() {
             </Box>
 
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2.5 }}>
-              {/* Status */}
+              {/* Acquisition Status */}
               <Box>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                  Acquisition Status
+                </Typography>
                 <FormControl fullWidth size="small">
-                  <InputLabel>Status</InputLabel>
                   <Select
-                    value={selectedParcel.status}
-                    label="Status"
-                    onChange={(e) => handleStatusChange(selectedParcel.id, e.target.value)}
+                    value={selectedParcel.acquisitionStatus || selectedParcel.status || 'NOT_STARTED'}
+                    onChange={(e) => handleStatusChange(selectedParcel.id, e.target.value, 'acquisition')}
                     disabled={updateStatusMutation.isPending}
                     sx={{
                       '& .MuiSelect-select': {
-                        bgcolor: getStatusColor(selectedParcel.status),
+                        bgcolor: getStatusColor(selectedParcel.acquisitionStatus || selectedParcel.status || 'NOT_STARTED'),
                         color: 'white',
                         fontWeight: 'bold',
                       },
                     }}
                   >
-                    {STATUSES.map((status) => {
+                    {ACQUISITION_STATUSES.map((status) => {
                       const StatusIcon = status.icon;
                       return (
                         <MenuItem key={status.value} value={status.value}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <StatusIcon sx={{ fontSize: 18, color: getStatusColor(status.value) }} />
+                            {status.label}
+                          </Box>
+                        </MenuItem>
+                      );
+                    })}
+                  </Select>
+                </FormControl>
+              </Box>
+
+              {/* Title Status */}
+              <Box>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                  Title Status
+                </Typography>
+                <FormControl fullWidth size="small">
+                  <Select
+                    value={selectedParcel.titleStatus || 'NOT_STARTED'}
+                    onChange={(e) => handleStatusChange(selectedParcel.id, e.target.value, 'title')}
+                    disabled={updateStatusMutation.isPending}
+                    sx={{
+                      '& .MuiSelect-select': {
+                        bgcolor: getTitleStatusColor(selectedParcel.titleStatus || 'NOT_STARTED'),
+                        color: 'white',
+                        fontWeight: 'bold',
+                      },
+                    }}
+                  >
+                    {TITLE_STATUSES.map((status) => {
+                      const StatusIcon = status.icon;
+                      return (
+                        <MenuItem key={status.value} value={status.value}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <StatusIcon sx={{ fontSize: 18, color: getTitleStatusColor(status.value) }} />
                             {status.label}
                           </Box>
                         </MenuItem>
@@ -749,12 +803,12 @@ export default function ProjectDetailPage() {
         </DialogActions>
       </Dialog>
 
-      {/* Bulk Status Update Dialog */}
+      {/* Bulk Acquisition Status Update Dialog */}
       <Dialog open={bulkStatusDialogOpen} onClose={() => setBulkStatusDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Update Status for {selectedParcelIds.length} Parcels</DialogTitle>
+        <DialogTitle>Update Acquisition Status for {selectedParcelIds.length} Parcels</DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 2 }}>
-            {STATUSES.map((status) => {
+            {ACQUISITION_STATUSES.map((status) => {
               const StatusIcon = status.icon;
               return (
                 <Button
@@ -809,6 +863,24 @@ function getStatusColor(status: string): string {
 
 // Helper function to get status icon
 function getStatusIcon(status: string) {
-  const statusObj = STATUSES.find(s => s.value === status);
+  const statusObj = ACQUISITION_STATUSES.find(s => s.value === status);
   return statusObj?.icon || HourglassEmptyIcon;
+}
+
+// Helper function to get title status color
+function getTitleStatusColor(status: string): string {
+  switch (status) {
+    case 'NOT_STARTED':
+      return '#9e9e9e';
+    case 'IN_PROGRESS':
+      return '#2196f3';
+    case 'COMPLETE':
+      return '#4caf50';
+    case 'CURATIVE':
+      return '#ff9800';
+    case 'HOLD':
+      return '#f44336';
+    default:
+      return '#757575';
+  }
 }
