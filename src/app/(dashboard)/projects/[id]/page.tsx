@@ -264,7 +264,8 @@ export default function ProjectDetailPage() {
       parcel.pin?.toLowerCase().includes(query)
     );
 
-    const matchesStatus = statusFilter.length === 0 || statusFilter.includes(parcel.status);
+    const parcelStatus = parcel.acquisitionStatus || parcel.status || 'NOT_STARTED';
+    const matchesStatus = statusFilter.length === 0 || statusFilter.includes(parcelStatus);
 
     return matchesSearch && matchesStatus;
   }) || [];
@@ -496,10 +497,10 @@ export default function ProjectDetailPage() {
                               {parcel.parcelNumber || `Parcel ${parcel.sequence || 'N/A'}`}
                             </Typography>
                             <Chip
-                              label={parcel.status.replace('_', ' ')}
+                              label={(parcel.acquisitionStatus || parcel.status || 'NOT_STARTED').replace('_', ' ')}
                               size="small"
                               sx={{
-                                bgcolor: getStatusColor(parcel.status),
+                                bgcolor: getStatusColor(parcel.acquisitionStatus || parcel.status || 'NOT_STARTED'),
                                 color: 'white',
                                 fontWeight: 'bold',
                               }}
@@ -766,6 +767,64 @@ export default function ProjectDetailPage() {
                       {selectedParcel.legalDesc}
                     </Typography>
                   </Box>
+                )}
+              </Box>
+
+              <Divider />
+
+              {/* Notes */}
+              <Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                  <Typography variant="subtitle2" color="primary" fontWeight="bold">
+                    Notes
+                  </Typography>
+                </Box>
+                {selectedParcel.notes && selectedParcel.notes.length > 0 ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    {selectedParcel.notes.map((note: any, index: number) => (
+                      <Paper key={index} variant="outlined" sx={{ p: 1.5, bgcolor: 'grey.50' }}>
+                        <Typography variant="body2" sx={{ mb: 0.5 }}>
+                          {note.content}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {new Date(note.createdAt).toLocaleDateString()}
+                        </Typography>
+                      </Paper>
+                    ))}
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    No notes yet
+                  </Typography>
+                )}
+              </Box>
+
+              <Divider />
+
+              {/* Documents */}
+              <Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                  <Typography variant="subtitle2" color="primary" fontWeight="bold">
+                    Documents
+                  </Typography>
+                </Box>
+                {selectedParcel.documents && selectedParcel.documents.length > 0 ? (
+                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                    {selectedParcel.documents.map((doc: any, index: number) => (
+                      <Paper key={index} variant="outlined" sx={{ p: 1.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <Typography variant="body2" sx={{ flex: 1 }}>
+                          {doc.name}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {(doc.size / 1024).toFixed(1)} KB
+                        </Typography>
+                      </Paper>
+                    ))}
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    No documents yet
+                  </Typography>
                 )}
               </Box>
             </Box>

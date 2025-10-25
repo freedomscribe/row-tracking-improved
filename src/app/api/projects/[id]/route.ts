@@ -24,6 +24,14 @@ export async function GET(
       },
       include: {
         parcels: {
+          include: {
+            notes: {
+              orderBy: { createdAt: 'desc' },
+            },
+            documents: {
+              orderBy: { createdAt: 'desc' },
+            },
+          },
           orderBy: [
             { sequence: 'asc' },
             { parcelNumber: 'asc' },

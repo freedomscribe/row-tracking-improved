@@ -64,7 +64,9 @@ export const parcelSchema = z.object({
   ownerEmail: z.string().email().optional().or(z.literal('')),
   legalDesc: z.string().optional(),
   county: z.string().optional(),
-  status: z.enum(['NOT_STARTED', 'IN_PROGRESS', 'ACQUIRED', 'CONDEMNED', 'RELOCATED']).default('NOT_STARTED'),
+  status: z.enum(['NOT_STARTED', 'IN_PROGRESS', 'ACQUIRED', 'CONDEMNED', 'RELOCATED']).default('NOT_STARTED').optional(),
+  acquisitionStatus: z.enum(['NOT_STARTED', 'IN_PROGRESS', 'ACQUIRED', 'CONDEMNED', 'RELOCATED']).default('NOT_STARTED').optional(),
+  titleStatus: z.enum(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETE', 'CURATIVE', 'HOLD']).default('NOT_STARTED').optional(),
   sequence: z.number().int().positive().optional(),
   milepost: z.number().positive().optional(),
   geometry: z.any().optional(), // GeoJSON
