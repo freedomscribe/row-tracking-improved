@@ -142,27 +142,29 @@ model Project {
 }
 
 model Parcel {
-  id                String       @id @default(cuid())
-  projectId         String
-  parcelNumber      String?
-  pin               String?
-  owner             String?
-  ownerAddress      String?
-  ownerCity         String?
-  ownerState        String?
-  ownerZip          String?
-  ownerPhone        String?
-  ownerEmail        String?
-  legalDesc         String?
-  county            String?
-  acquisitionStatus ParcelStatus @default(NOT_STARTED) @map("status") // Renamed for clarity
-  titleStatus       TitleStatus  @default(NOT_STARTED)
-  sequence          Int?
-  milepost          Float?
-  geometry          Json?        // GeoJSON geometry
-  acreage           Float?
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  id                       String                  @id @default(cuid())
+  projectId                String
+  parcelNumber             String?
+  pin                      String?
+  owner                    String?
+  ownerAddress             String?
+  ownerCity                String?
+  ownerState               String?
+  ownerZip                 String?
+  ownerPhone               String?
+  ownerEmail               String?
+  legalDesc                String?
+  county                   String?
+  acquisitionStatus        ParcelStatus            @default(NOT_STARTED) @map("status") // Renamed for clarity
+  titleStatus              TitleStatus             @default(NOT_STARTED)
+  damagesStatus            DamagesStatus           @default(INVESTIGATE)
+  specialConditionsStatus  SpecialConditionsStatus @default(NONE)
+  sequence                 Int?
+  milepost                 Float?
+  geometry                 Json?                   // GeoJSON geometry
+  acreage                  Float?
+  createdAt                DateTime                @default(now())
+  updatedAt                DateTime                @updatedAt
 
   // Relations
   project   Project    @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -172,6 +174,8 @@ model Parcel {
   @@index([projectId])
   @@index([acquisitionStatus])
   @@index([titleStatus])
+  @@index([damagesStatus])
+  @@index([specialConditionsStatus])
   @@index([county])
   @@map("parcels")
 }
@@ -180,7 +184,7 @@ model Note {
   id        String   @id @default(cuid())
   parcelId  String
   content   String
-  category  String?  // e.g., "Contact", "Negotiation", "Legal", "Site Visit"
+  category  String?  // Status type: "title", "acquisition", "damages", "special_conditions"
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -188,6 +192,7 @@ model Note {
   parcel Parcel @relation(fields: [parcelId], references: [id], onDelete: Cascade)
 
   @@index([parcelId])
+  @@index([category])
   @@map("notes")
 }
 
@@ -196,6 +201,7 @@ model Document {
   parcelId  String
   name      String
   type      String   // e.g., "Contract", "Survey", "Photo", "Legal"
+  category  String?  // Status type: "title", "acquisition", "damages", "special_conditions"
   url       String   // Vercel Blob URL or file path
   size      Int      // in bytes
   mimeType  String
@@ -205,6 +211,7 @@ model Document {
   parcel Parcel @relation(fields: [parcelId], references: [id], onDelete: Cascade)
 
   @@index([parcelId])
+  @@index([category])
   @@map("documents")
 }
 
@@ -224,3 +231,17 @@ enum TitleStatus {
   HOLD
 }
 
+enum DamagesStatus {
+  INVESTIGATE
+  REPORT
+  RESOLVED
+}
+
+enum SpecialConditionsStatus {
+  NONE
+  NOTIFICATION_REQUIRED
+  LOCKED_GATE
+  HERBICIDES
+  FORESTRY
+  OTHER
+}

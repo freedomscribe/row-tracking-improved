@@ -30,6 +30,8 @@ import {
   DialogActions,
   Checkbox,
   Toolbar,
+  Tabs,
+  Tab,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -47,6 +49,14 @@ import {
   Gavel as GavelIcon,
   DriveFileMove as DriveFileMoveIcon,
   Tag as TagIcon,
+  Block as BlockIcon,
+  Notifications as NotificationsIcon,
+  Lock as LockIcon,
+  Eco as EcoIcon,
+  Park as ParkIcon,
+  MoreHoriz as MoreHorizIcon,
+  Search as InvestigateIcon,
+  Description as ReportIcon,
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
@@ -73,6 +83,21 @@ const TITLE_STATUSES = [
   { value: 'HOLD', label: 'Hold', icon: PendingActionsIcon },
 ];
 
+const SPECIAL_CONDITIONS_STATUSES = [
+  { value: 'NONE', label: 'None', icon: CheckCircleIcon },
+  { value: 'NOTIFICATION_REQUIRED', label: 'Notification Required', icon: NotificationsIcon },
+  { value: 'LOCKED_GATE', label: 'Locked Gate', icon: LockIcon },
+  { value: 'HERBICIDES', label: 'Herbicides', icon: EcoIcon },
+  { value: 'FORESTRY', label: 'Forestry', icon: ParkIcon },
+  { value: 'OTHER', label: 'Other', icon: MoreHorizIcon },
+];
+
+const DAMAGES_STATUSES = [
+  { value: 'INVESTIGATE', label: 'Investigate', icon: InvestigateIcon },
+  { value: 'REPORT', label: 'Report', icon: ReportIcon },
+  { value: 'RESOLVED', label: 'Resolved', icon: CheckCircleIcon },
+];
+
 interface Parcel {
   id: string;
   parcelNumber?: string | null;
@@ -87,6 +112,8 @@ interface Parcel {
   legalDesc?: string | null;
   acquisitionStatus?: string;
   titleStatus?: string;
+  damagesStatus?: string;
+  specialConditionsStatus?: string;
   status?: string; // Keep for backward compatibility
   geometry?: any;
   acreage?: number | null;
@@ -123,6 +150,7 @@ export default function ProjectDetailPage() {
 
   const [selectedParcelId, setSelectedParcelId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [activeStatusTab, setActiveStatusTab] = useState<'title' | 'acquisition' | 'specialConditions' | 'damages'>('title');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [selectedParcelIds, setSelectedParcelIds] = useState<string[]>([]);
   const [bulkStatusDialogOpen, setBulkStatusDialogOpen] = useState(false);
@@ -158,6 +186,10 @@ export default function ProjectDetailPage() {
         ? { titleStatus: status }
         : statusType === 'acquisition'
         ? { acquisitionStatus: status }
+        : statusType === 'specialConditions'
+        ? { specialConditionsStatus: status }
+        : statusType === 'damages'
+        ? { damagesStatus: status }
         : { status }; // Fallback for backward compatibility
 
       const res = await fetch(`/api/parcels/${parcelId}`, {
@@ -170,10 +202,18 @@ export default function ProjectDetailPage() {
     },
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['project', projectId] });
-      const statuses = variables.statusType === 'title' ? TITLE_STATUSES : ACQUISITION_STATUSES;
+      const statuses = variables.statusType === 'title' ? TITLE_STATUSES
+        : variables.statusType === 'acquisition' ? ACQUISITION_STATUSES
+        : variables.statusType === 'specialConditions' ? SPECIAL_CONDITIONS_STATUSES
+        : variables.statusType === 'damages' ? DAMAGES_STATUSES
+        : ACQUISITION_STATUSES;
       const statusLabel = statuses.find(s => s.value === variables.status)?.label || variables.status;
-      const statusType = variables.statusType === 'title' ? 'Title' : 'Acquisition';
-      setSnackbar({ open: true, message: `${statusType} status updated to ${statusLabel}` });
+      const statusTypeName = variables.statusType === 'title' ? 'Title'
+        : variables.statusType === 'acquisition' ? 'Acquisition'
+        : variables.statusType === 'specialConditions' ? 'Special Conditions'
+        : variables.statusType === 'damages' ? 'Damages'
+        : 'Acquisition';
+      setSnackbar({ open: true, message: `${statusTypeName} status updated to ${statusLabel}` });
     },
   });
 
@@ -193,26 +233,43 @@ export default function ProjectDetailPage() {
     setDeleteDialog({ open: false, parcelId: null, parcelName: '' });
   };
 
-  const handleStatusChange = (parcelId: string, newStatus: string, statusType: 'acquisition' | 'title' = 'acquisition') => {
+  const handleStatusChange = (parcelId: string, newStatus: string, statusType: 'title' | 'acquisition' | 'specialConditions' | 'damages' = 'acquisition') => {
     updateStatusMutation.mutate({ parcelId, status: newStatus, statusType });
   };
 
   // Bulk update mutation
   const bulkUpdateMutation = useMutation({
     mutationFn: async (status: string) => {
+      // Determine which status field to update based on active tab
+      const statusField = activeStatusTab === 'title' ? 'titleStatus'
+        : activeStatusTab === 'acquisition' ? 'acquisitionStatus'
+        : activeStatusTab === 'specialConditions' ? 'specialConditionsStatus'
+        : activeStatusTab === 'damages' ? 'damagesStatus'
+        : 'acquisitionStatus';
+
       const promises = selectedParcelIds.map(parcelId =>
         fetch(`/api/parcels/${parcelId}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ status }),
+          body: JSON.stringify({ [statusField]: status }),
         })
       );
       await Promise.all(promises);
     },
     onSuccess: (_, status) => {
       queryClient.invalidateQueries({ queryKey: ['project', projectId] });
-      const statusLabel = STATUSES.find(s => s.value === status)?.label || status;
-      setSnackbar({ open: true, message: `Updated ${selectedParcelIds.length} parcels to ${statusLabel}` });
+      const currentStatuses = activeStatusTab === 'title' ? TITLE_STATUSES
+        : activeStatusTab === 'acquisition' ? ACQUISITION_STATUSES
+        : activeStatusTab === 'specialConditions' ? SPECIAL_CONDITIONS_STATUSES
+        : activeStatusTab === 'damages' ? DAMAGES_STATUSES
+        : ACQUISITION_STATUSES;
+      const statusLabel = currentStatuses.find(s => s.value === status)?.label || status;
+      const statusTypeName = activeStatusTab === 'title' ? 'Title'
+        : activeStatusTab === 'acquisition' ? 'Acquisition'
+        : activeStatusTab === 'specialConditions' ? 'Special Conditions'
+        : activeStatusTab === 'damages' ? 'Damages'
+        : 'Acquisition';
+      setSnackbar({ open: true, message: `Updated ${selectedParcelIds.length} parcels ${statusTypeName} status to ${statusLabel}` });
       setSelectedParcelIds([]);
       setBulkStatusDialogOpen(false);
     },
@@ -254,6 +311,26 @@ export default function ProjectDetailPage() {
     return <Alert severity="error">Project not found</Alert>;
   }
 
+  // Get current statuses based on active tab
+  const getCurrentStatuses = () => {
+    return activeStatusTab === 'title' ? TITLE_STATUSES
+      : activeStatusTab === 'acquisition' ? ACQUISITION_STATUSES
+      : activeStatusTab === 'specialConditions' ? SPECIAL_CONDITIONS_STATUSES
+      : activeStatusTab === 'damages' ? DAMAGES_STATUSES
+      : ACQUISITION_STATUSES;
+  };
+
+  const currentStatuses = getCurrentStatuses();
+
+  // Get parcel status based on active tab
+  const getParcelStatusForTab = (parcel: Parcel) => {
+    return activeStatusTab === 'title' ? (parcel.titleStatus || 'NOT_STARTED')
+      : activeStatusTab === 'acquisition' ? (parcel.acquisitionStatus || parcel.status || 'NOT_STARTED')
+      : activeStatusTab === 'specialConditions' ? (parcel.specialConditionsStatus || 'NONE')
+      : activeStatusTab === 'damages' ? (parcel.damagesStatus || 'INVESTIGATE')
+      : (parcel.acquisitionStatus || parcel.status || 'NOT_STARTED');
+  };
+
   // Filter parcels based on search query and status
   const filteredParcels = project.parcels?.filter((parcel) => {
     const query = searchQuery.toLowerCase();
@@ -264,7 +341,7 @@ export default function ProjectDetailPage() {
       parcel.pin?.toLowerCase().includes(query)
     );
 
-    const parcelStatus = parcel.acquisitionStatus || parcel.status || 'NOT_STARTED';
+    const parcelStatus = getParcelStatusForTab(parcel);
     const matchesStatus = statusFilter.length === 0 || statusFilter.includes(parcelStatus);
 
     return matchesSearch && matchesStatus;
@@ -359,6 +436,22 @@ export default function ProjectDetailPage() {
             </Toolbar>
           )}
 
+          {/* Status Tabs */}
+          <Tabs
+            value={activeStatusTab}
+            onChange={(e, newValue) => {
+              setActiveStatusTab(newValue);
+              setStatusFilter([]); // Clear filters when switching tabs
+            }}
+            variant="fullWidth"
+            sx={{ borderBottom: 1, borderColor: 'divider' }}
+          >
+            <Tab label="Title" value="title" />
+            <Tab label="Acquisition" value="acquisition" />
+            <Tab label="Special Conditions" value="specialConditions" />
+            <Tab label="Damages" value="damages" />
+          </Tabs>
+
           {/* Search and Filters */}
           <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
             {filteredParcels.length > 0 && (
@@ -389,11 +482,16 @@ export default function ProjectDetailPage() {
               }}
             />
 
-            {/* Acquisition Status Filter Chips */}
+            {/* Status Filter Chips (based on active tab) */}
             <Box sx={{ display: 'flex', gap: 0.5, mt: 1.5, flexWrap: 'wrap' }}>
-              {ACQUISITION_STATUSES.map((status) => {
+              {currentStatuses.map((status) => {
                 const StatusIcon = status.icon;
                 const isActive = statusFilter.includes(status.value);
+                const statusColor = activeStatusTab === 'title' ? getTitleStatusColor(status.value)
+                  : activeStatusTab === 'acquisition' ? getStatusColor(status.value)
+                  : activeStatusTab === 'specialConditions' ? getSpecialConditionsColor(status.value)
+                  : activeStatusTab === 'damages' ? getDamagesColor(status.value)
+                  : getStatusColor(status.value);
                 return (
                   <Chip
                     key={status.value}
@@ -402,11 +500,11 @@ export default function ProjectDetailPage() {
                     label={status.label}
                     onClick={() => toggleStatusFilter(status.value)}
                     sx={{
-                      bgcolor: isActive ? getStatusColor(status.value) : 'transparent',
+                      bgcolor: isActive ? statusColor : 'transparent',
                       color: isActive ? 'white' : 'text.secondary',
-                      border: `1px solid ${isActive ? getStatusColor(status.value) : '#ddd'}`,
+                      border: `1px solid ${isActive ? statusColor : '#ddd'}`,
                       '&:hover': {
-                        bgcolor: isActive ? getStatusColor(status.value) : '#f5f5f5',
+                        bgcolor: isActive ? statusColor : '#f5f5f5',
                       },
                       fontWeight: isActive ? 'bold' : 'normal',
                     }}
@@ -629,6 +727,72 @@ export default function ProjectDetailPage() {
                         <MenuItem key={status.value} value={status.value}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                             <StatusIcon sx={{ fontSize: 18, color: getTitleStatusColor(status.value) }} />
+                            {status.label}
+                          </Box>
+                        </MenuItem>
+                      );
+                    })}
+                  </Select>
+                </FormControl>
+              </Box>
+
+              {/* Special Conditions Status */}
+              <Box>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                  Special Conditions Status
+                </Typography>
+                <FormControl fullWidth size="small">
+                  <Select
+                    value={selectedParcel.specialConditionsStatus || 'NONE'}
+                    onChange={(e) => handleStatusChange(selectedParcel.id, e.target.value, 'specialConditions')}
+                    disabled={updateStatusMutation.isPending}
+                    sx={{
+                      '& .MuiSelect-select': {
+                        bgcolor: getSpecialConditionsColor(selectedParcel.specialConditionsStatus || 'NONE'),
+                        color: 'white',
+                        fontWeight: 'bold',
+                      },
+                    }}
+                  >
+                    {SPECIAL_CONDITIONS_STATUSES.map((status) => {
+                      const StatusIcon = status.icon;
+                      return (
+                        <MenuItem key={status.value} value={status.value}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <StatusIcon sx={{ fontSize: 18, color: getSpecialConditionsColor(status.value) }} />
+                            {status.label}
+                          </Box>
+                        </MenuItem>
+                      );
+                    })}
+                  </Select>
+                </FormControl>
+              </Box>
+
+              {/* Damages Status */}
+              <Box>
+                <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                  Damages Status
+                </Typography>
+                <FormControl fullWidth size="small">
+                  <Select
+                    value={selectedParcel.damagesStatus || 'INVESTIGATE'}
+                    onChange={(e) => handleStatusChange(selectedParcel.id, e.target.value, 'damages')}
+                    disabled={updateStatusMutation.isPending}
+                    sx={{
+                      '& .MuiSelect-select': {
+                        bgcolor: getDamagesColor(selectedParcel.damagesStatus || 'INVESTIGATE'),
+                        color: 'white',
+                        fontWeight: 'bold',
+                      },
+                    }}
+                  >
+                    {DAMAGES_STATUSES.map((status) => {
+                      const StatusIcon = status.icon;
+                      return (
+                        <MenuItem key={status.value} value={status.value}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <StatusIcon sx={{ fontSize: 18, color: getDamagesColor(status.value) }} />
                             {status.label}
                           </Box>
                         </MenuItem>
@@ -862,13 +1026,24 @@ export default function ProjectDetailPage() {
         </DialogActions>
       </Dialog>
 
-      {/* Bulk Acquisition Status Update Dialog */}
+      {/* Bulk Status Update Dialog */}
       <Dialog open={bulkStatusDialogOpen} onClose={() => setBulkStatusDialogOpen(false)} maxWidth="xs" fullWidth>
-        <DialogTitle>Update Acquisition Status for {selectedParcelIds.length} Parcels</DialogTitle>
+        <DialogTitle>
+          Update {activeStatusTab === 'title' ? 'Title'
+            : activeStatusTab === 'acquisition' ? 'Acquisition'
+            : activeStatusTab === 'specialConditions' ? 'Special Conditions'
+            : activeStatusTab === 'damages' ? 'Damages'
+            : 'Acquisition'} Status for {selectedParcelIds.length} Parcels
+        </DialogTitle>
         <DialogContent>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 2 }}>
-            {ACQUISITION_STATUSES.map((status) => {
+            {currentStatuses.map((status) => {
               const StatusIcon = status.icon;
+              const statusColor = activeStatusTab === 'title' ? getTitleStatusColor(status.value)
+                : activeStatusTab === 'acquisition' ? getStatusColor(status.value)
+                : activeStatusTab === 'specialConditions' ? getSpecialConditionsColor(status.value)
+                : activeStatusTab === 'damages' ? getDamagesColor(status.value)
+                : getStatusColor(status.value);
               return (
                 <Button
                   key={status.value}
@@ -879,12 +1054,12 @@ export default function ProjectDetailPage() {
                   disabled={bulkUpdateMutation.isPending}
                   sx={{
                     justifyContent: 'flex-start',
-                    borderColor: getStatusColor(status.value),
-                    color: getStatusColor(status.value),
+                    borderColor: statusColor,
+                    color: statusColor,
                     '&:hover': {
-                      bgcolor: getStatusColor(status.value),
+                      bgcolor: statusColor,
                       color: 'white',
-                      borderColor: getStatusColor(status.value),
+                      borderColor: statusColor,
                     },
                   }}
                 >
@@ -939,6 +1114,40 @@ function getTitleStatusColor(status: string): string {
       return '#ff9800';
     case 'HOLD':
       return '#f44336';
+    default:
+      return '#757575';
+  }
+}
+
+// Helper function to get special conditions status color
+function getSpecialConditionsColor(status: string): string {
+  switch (status) {
+    case 'NONE':
+      return '#4caf50';
+    case 'NOTIFICATION_REQUIRED':
+      return '#2196f3';
+    case 'LOCKED_GATE':
+      return '#ff9800';
+    case 'HERBICIDES':
+      return '#8bc34a';
+    case 'FORESTRY':
+      return '#4caf50';
+    case 'OTHER':
+      return '#9e9e9e';
+    default:
+      return '#757575';
+  }
+}
+
+// Helper function to get damages status color
+function getDamagesColor(status: string): string {
+  switch (status) {
+    case 'INVESTIGATE':
+      return '#2196f3';
+    case 'REPORT':
+      return '#ff9800';
+    case 'RESOLVED':
+      return '#4caf50';
     default:
       return '#757575';
   }

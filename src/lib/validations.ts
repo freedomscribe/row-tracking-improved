@@ -67,6 +67,8 @@ export const parcelSchema = z.object({
   status: z.enum(['NOT_STARTED', 'IN_PROGRESS', 'ACQUIRED', 'CONDEMNED', 'RELOCATED']).default('NOT_STARTED').optional(),
   acquisitionStatus: z.enum(['NOT_STARTED', 'IN_PROGRESS', 'ACQUIRED', 'CONDEMNED', 'RELOCATED']).default('NOT_STARTED').optional(),
   titleStatus: z.enum(['NOT_STARTED', 'IN_PROGRESS', 'COMPLETE', 'CURATIVE', 'HOLD']).default('NOT_STARTED').optional(),
+  damagesStatus: z.enum(['INVESTIGATE', 'REPORT', 'RESOLVED']).default('INVESTIGATE').optional(),
+  specialConditionsStatus: z.enum(['NONE', 'NOTIFICATION_REQUIRED', 'LOCKED_GATE', 'HERBICIDES', 'FORESTRY', 'OTHER']).default('NONE').optional(),
   sequence: z.number().int().positive().optional(),
   milepost: z.number().positive().optional(),
   geometry: z.any().optional(), // GeoJSON
