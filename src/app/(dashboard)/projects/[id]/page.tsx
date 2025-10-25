@@ -22,6 +22,14 @@ import {
   MenuItem,
   FormControl,
   InputLabel,
+  Snackbar,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Checkbox,
+  Toolbar,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -30,6 +38,15 @@ import {
   Download as DownloadIcon,
   Upload as UploadIcon,
   Delete as DeleteIcon,
+  LocationOn as LocationOnIcon,
+  Person as PersonIcon,
+  Home as HomeIcon,
+  CheckCircle as CheckCircleIcon,
+  HourglassEmpty as HourglassEmptyIcon,
+  PendingActions as PendingActionsIcon,
+  Gavel as GavelIcon,
+  DriveFileMove as DriveFileMoveIcon,
+  Tag as TagIcon,
 } from '@mui/icons-material';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import dynamic from 'next/dynamic';
@@ -41,11 +58,11 @@ const ParcelMap = dynamic(() => import('@/components/map/ParcelMap'), {
 });
 
 const STATUSES = [
-  { value: 'NOT_STARTED', label: 'Not Started' },
-  { value: 'IN_PROGRESS', label: 'In Progress' },
-  { value: 'ACQUIRED', label: 'Acquired' },
-  { value: 'CONDEMNED', label: 'Condemned' },
-  { value: 'RELOCATED', label: 'Relocated' },
+  { value: 'NOT_STARTED', label: 'Not Started', icon: HourglassEmptyIcon },
+  { value: 'IN_PROGRESS', label: 'In Progress', icon: PendingActionsIcon },
+  { value: 'ACQUIRED', label: 'Acquired', icon: CheckCircleIcon },
+  { value: 'CONDEMNED', label: 'Condemned', icon: GavelIcon },
+  { value: 'RELOCATED', label: 'Relocated', icon: DriveFileMoveIcon },
 ];
 
 interface Parcel {
@@ -94,6 +111,15 @@ export default function ProjectDetailPage() {
 
   const [selectedParcelId, setSelectedParcelId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<string[]>([]);
+  const [selectedParcelIds, setSelectedParcelIds] = useState<string[]>([]);
+  const [bulkStatusDialogOpen, setBulkStatusDialogOpen] = useState(false);
+  const [snackbar, setSnackbar] = useState<{ open: boolean; message: string }>({ open: false, message: '' });
+  const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; parcelId: string | null; parcelName: string }>({
+    open: false,
+    parcelId: null,
+    parcelName: '',
+  });
 
   const { data: project, isLoading, error} = useQuery<Project>({
     queryKey: ['project', projectId],
@@ -109,6 +135,7 @@ export default function ProjectDetailPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['project', projectId] });
       setSelectedParcelId(null);
+      setSnackbar({ open: true, message: 'Parcel deleted successfully' });
     },
   });
 
@@ -123,20 +150,72 @@ export default function ProjectDetailPage() {
       if (!res.ok) throw new Error('Failed to update status');
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+      const statusLabel = STATUSES.find(s => s.value === variables.status)?.label || variables.status;
+      setSnackbar({ open: true, message: `Status updated to ${statusLabel}` });
     },
   });
 
-  const handleDeleteParcel = (parcelId: string, e: React.MouseEvent) => {
+  const handleDeleteParcel = (parcel: Parcel, e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent selecting the parcel when clicking delete
-    if (window.confirm('Are you sure you want to delete this parcel?')) {
-      deleteParcelMutation.mutate(parcelId);
+    setDeleteDialog({
+      open: true,
+      parcelId: parcel.id,
+      parcelName: parcel.parcelNumber || parcel.pin || `Parcel ${parcel.sequence}` || 'this parcel',
+    });
+  };
+
+  const confirmDelete = () => {
+    if (deleteDialog.parcelId) {
+      deleteParcelMutation.mutate(deleteDialog.parcelId);
     }
+    setDeleteDialog({ open: false, parcelId: null, parcelName: '' });
   };
 
   const handleStatusChange = (parcelId: string, newStatus: string) => {
     updateStatusMutation.mutate({ parcelId, status: newStatus });
+  };
+
+  // Bulk update mutation
+  const bulkUpdateMutation = useMutation({
+    mutationFn: async (status: string) => {
+      const promises = selectedParcelIds.map(parcelId =>
+        fetch(`/api/parcels/${parcelId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ status }),
+        })
+      );
+      await Promise.all(promises);
+    },
+    onSuccess: (_, status) => {
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+      const statusLabel = STATUSES.find(s => s.value === status)?.label || status;
+      setSnackbar({ open: true, message: `Updated ${selectedParcelIds.length} parcels to ${statusLabel}` });
+      setSelectedParcelIds([]);
+      setBulkStatusDialogOpen(false);
+    },
+  });
+
+  const handleBulkStatusUpdate = (status: string) => {
+    bulkUpdateMutation.mutate(status);
+  };
+
+  const toggleParcelSelection = (parcelId: string) => {
+    setSelectedParcelIds(prev =>
+      prev.includes(parcelId)
+        ? prev.filter(id => id !== parcelId)
+        : [...prev, parcelId]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedParcelIds.length === filteredParcels.length) {
+      setSelectedParcelIds([]);
+    } else {
+      setSelectedParcelIds(filteredParcels.map(p => p.id));
+    }
   };
 
   if (isLoading) {
@@ -155,15 +234,28 @@ export default function ProjectDetailPage() {
     return <Alert severity="error">Project not found</Alert>;
   }
 
-  // Filter parcels based on search query
+  // Filter parcels based on search query and status
   const filteredParcels = project.parcels?.filter((parcel) => {
     const query = searchQuery.toLowerCase();
-    return (
+    const matchesSearch = (
       parcel.parcelNumber?.toLowerCase().includes(query) ||
       parcel.owner?.toLowerCase().includes(query) ||
-      parcel.county?.toLowerCase().includes(query)
+      parcel.county?.toLowerCase().includes(query) ||
+      parcel.pin?.toLowerCase().includes(query)
     );
+
+    const matchesStatus = statusFilter.length === 0 || statusFilter.includes(parcel.status);
+
+    return matchesSearch && matchesStatus;
   }) || [];
+
+  const toggleStatusFilter = (status: string) => {
+    setStatusFilter(prev =>
+      prev.includes(status)
+        ? prev.filter(s => s !== status)
+        : [...prev, status]
+    );
+  };
 
   const selectedParcel = filteredParcels.find((p) => p.id === selectedParcelId);
 
@@ -216,8 +308,51 @@ export default function ProjectDetailPage() {
             overflow: 'hidden',
           }}
         >
+          {/* Bulk Actions Toolbar */}
+          {selectedParcelIds.length > 0 && (
+            <Toolbar
+              sx={{
+                bgcolor: 'primary.main',
+                color: 'white',
+                minHeight: 48,
+              }}
+            >
+              <Typography variant="body2" sx={{ flex: 1 }}>
+                {selectedParcelIds.length} selected
+              </Typography>
+              <Button
+                size="small"
+                variant="contained"
+                sx={{ bgcolor: 'white', color: 'primary.main', '&:hover': { bgcolor: 'grey.100' } }}
+                onClick={() => setBulkStatusDialogOpen(true)}
+              >
+                Update Status
+              </Button>
+              <Button
+                size="small"
+                sx={{ color: 'white', ml: 1 }}
+                onClick={() => setSelectedParcelIds([])}
+              >
+                Clear
+              </Button>
+            </Toolbar>
+          )}
+
           {/* Search and Filters */}
           <Box sx={{ p: 2, borderBottom: 1, borderColor: 'divider' }}>
+            {filteredParcels.length > 0 && (
+              <Box sx={{ display: 'flex', alignItems: 'center', mb: 1 }}>
+                <Checkbox
+                  checked={selectedParcelIds.length === filteredParcels.length && filteredParcels.length > 0}
+                  indeterminate={selectedParcelIds.length > 0 && selectedParcelIds.length < filteredParcels.length}
+                  onChange={toggleSelectAll}
+                  size="small"
+                />
+                <Typography variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+                  Select All
+                </Typography>
+              </Box>
+            )}
             <TextField
               fullWidth
               size="small"
@@ -232,22 +367,64 @@ export default function ProjectDetailPage() {
                 ),
               }}
             />
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1 }}>
+
+            {/* Status Filter Chips */}
+            <Box sx={{ display: 'flex', gap: 0.5, mt: 1.5, flexWrap: 'wrap' }}>
+              {STATUSES.map((status) => {
+                const StatusIcon = status.icon;
+                const isActive = statusFilter.includes(status.value);
+                return (
+                  <Chip
+                    key={status.value}
+                    size="small"
+                    icon={<StatusIcon sx={{ fontSize: 14 }} />}
+                    label={status.label}
+                    onClick={() => toggleStatusFilter(status.value)}
+                    sx={{
+                      bgcolor: isActive ? getStatusColor(status.value) : 'transparent',
+                      color: isActive ? 'white' : 'text.secondary',
+                      border: `1px solid ${isActive ? getStatusColor(status.value) : '#ddd'}`,
+                      '&:hover': {
+                        bgcolor: isActive ? getStatusColor(status.value) : '#f5f5f5',
+                      },
+                      fontWeight: isActive ? 'bold' : 'normal',
+                    }}
+                  />
+                );
+              })}
+            </Box>
+
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', mt: 1.5 }}>
               <Typography variant="body2" color="text.secondary">
                 {filteredParcels.length} parcel{filteredParcels.length !== 1 ? 's' : ''}
+                {statusFilter.length > 0 && ` (filtered)`}
               </Typography>
-              <IconButton size="small">
-                <FilterIcon fontSize="small" />
-              </IconButton>
+              {statusFilter.length > 0 && (
+                <Button
+                  size="small"
+                  onClick={() => setStatusFilter([])}
+                  sx={{ fontSize: '0.75rem', p: 0, minWidth: 'auto' }}
+                >
+                  Clear
+                </Button>
+              )}
             </Box>
           </Box>
 
           {/* Parcel List */}
           <List sx={{ flex: 1, overflow: 'auto', p: 0 }}>
             {filteredParcels.length === 0 ? (
-              <Box sx={{ p: 3, textAlign: 'center' }}>
-                <Typography variant="body2" color="text.secondary">
-                  No parcels found. Click "Add Parcel" to get started.
+              <Box sx={{ p: 4, textAlign: 'center' }}>
+                <LocationOnIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
+                <Typography variant="body1" color="text.secondary" gutterBottom>
+                  {statusFilter.length > 0 || searchQuery
+                    ? 'No parcels match your filters'
+                    : 'No parcels yet'}
+                </Typography>
+                <Typography variant="body2" color="text.disabled">
+                  {statusFilter.length > 0 || searchQuery
+                    ? 'Try adjusting your search or filters'
+                    : 'Click "Import" or "Add Parcel" to get started'}
                 </Typography>
               </Box>
             ) : (
@@ -259,16 +436,38 @@ export default function ProjectDetailPage() {
                       <IconButton
                         edge="end"
                         aria-label="delete"
-                        onClick={(e) => handleDeleteParcel(parcel.id, e)}
+                        onClick={(e) => handleDeleteParcel(parcel, e)}
                         size="small"
                       >
                         <DeleteIcon fontSize="small" />
                       </IconButton>
                     }
                   >
+                    <Checkbox
+                      checked={selectedParcelIds.includes(parcel.id)}
+                      onChange={() => toggleParcelSelection(parcel.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      size="small"
+                      sx={{ ml: 1 }}
+                    />
                     <ListItemButton
                       selected={selectedParcelId === parcel.id}
                       onClick={() => setSelectedParcelId(parcel.id)}
+                      sx={{
+                        transition: 'all 0.2s',
+                        '&:hover': {
+                          bgcolor: 'action.hover',
+                          transform: 'translateX(4px)',
+                        },
+                        '&.Mui-selected': {
+                          bgcolor: 'primary.light',
+                          borderLeft: '4px solid',
+                          borderColor: 'primary.main',
+                          '&:hover': {
+                            bgcolor: 'primary.light',
+                          },
+                        },
+                      }}
                     >
                       <ListItemText
                         primary={
@@ -369,21 +568,17 @@ export default function ProjectDetailPage() {
                       },
                     }}
                   >
-                    {STATUSES.map((status) => (
-                      <MenuItem key={status.value} value={status.value}>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                          <Box
-                            sx={{
-                              width: 12,
-                              height: 12,
-                              borderRadius: '50%',
-                              bgcolor: getStatusColor(status.value),
-                            }}
-                          />
-                          {status.label}
-                        </Box>
-                      </MenuItem>
-                    ))}
+                    {STATUSES.map((status) => {
+                      const StatusIcon = status.icon;
+                      return (
+                        <MenuItem key={status.value} value={status.value}>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <StatusIcon sx={{ fontSize: 18, color: getStatusColor(status.value) }} />
+                            {status.label}
+                          </Box>
+                        </MenuItem>
+                      );
+                    })}
                   </Select>
                 </FormControl>
               </Box>
@@ -392,9 +587,12 @@ export default function ProjectDetailPage() {
 
               {/* Parcel Identification */}
               <Box>
-                <Typography variant="subtitle2" color="primary" gutterBottom>
-                  Parcel Identification
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                  <TagIcon sx={{ fontSize: 20, color: 'primary.main' }} />
+                  <Typography variant="subtitle2" color="primary" fontWeight="bold">
+                    Parcel Identification
+                  </Typography>
+                </Box>
                 {selectedParcel.pin && (
                   <Box sx={{ mb: 1 }}>
                     <Typography variant="caption" color="text.secondary">
@@ -425,9 +623,12 @@ export default function ProjectDetailPage() {
 
               {/* Owner Information */}
               <Box>
-                <Typography variant="subtitle2" color="primary" gutterBottom>
-                  Owner Information
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                  <PersonIcon sx={{ fontSize: 20, color: 'primary.main' }} />
+                  <Typography variant="subtitle2" color="primary" fontWeight="bold">
+                    Owner Information
+                  </Typography>
+                </Box>
                 {selectedParcel.owner && (
                   <Box sx={{ mb: 1 }}>
                     <Typography variant="caption" color="text.secondary">
@@ -472,9 +673,12 @@ export default function ProjectDetailPage() {
 
               {/* Property Information */}
               <Box>
-                <Typography variant="subtitle2" color="primary" gutterBottom>
-                  Property Information
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
+                  <HomeIcon sx={{ fontSize: 20, color: 'primary.main' }} />
+                  <Typography variant="subtitle2" color="primary" fontWeight="bold">
+                    Property Information
+                  </Typography>
+                </Box>
                 {selectedParcel.county && (
                   <Box sx={{ mb: 1 }}>
                     <Typography variant="caption" color="text.secondary">
@@ -514,6 +718,73 @@ export default function ProjectDetailPage() {
           </Paper>
         )}
       </Box>
+
+      {/* Success Notification */}
+      <Snackbar
+        open={snackbar.open}
+        autoHideDuration={3000}
+        onClose={() => setSnackbar({ ...snackbar, open: false })}
+        message={snackbar.message}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+      />
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog
+        open={deleteDialog.open}
+        onClose={() => setDeleteDialog({ open: false, parcelId: null, parcelName: '' })}
+      >
+        <DialogTitle>Delete Parcel?</DialogTitle>
+        <DialogContent>
+          <DialogContentText>
+            Are you sure you want to delete <strong>{deleteDialog.parcelName}</strong>? This action cannot be undone.
+          </DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDeleteDialog({ open: false, parcelId: null, parcelName: '' })}>
+            Cancel
+          </Button>
+          <Button onClick={confirmDelete} color="error" variant="contained">
+            Delete
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Bulk Status Update Dialog */}
+      <Dialog open={bulkStatusDialogOpen} onClose={() => setBulkStatusDialogOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle>Update Status for {selectedParcelIds.length} Parcels</DialogTitle>
+        <DialogContent>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, mt: 2 }}>
+            {STATUSES.map((status) => {
+              const StatusIcon = status.icon;
+              return (
+                <Button
+                  key={status.value}
+                  variant="outlined"
+                  fullWidth
+                  startIcon={<StatusIcon />}
+                  onClick={() => handleBulkStatusUpdate(status.value)}
+                  disabled={bulkUpdateMutation.isPending}
+                  sx={{
+                    justifyContent: 'flex-start',
+                    borderColor: getStatusColor(status.value),
+                    color: getStatusColor(status.value),
+                    '&:hover': {
+                      bgcolor: getStatusColor(status.value),
+                      color: 'white',
+                      borderColor: getStatusColor(status.value),
+                    },
+                  }}
+                >
+                  {status.label}
+                </Button>
+              );
+            })}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBulkStatusDialogOpen(false)}>Cancel</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 }
@@ -534,4 +805,10 @@ function getStatusColor(status: string): string {
     default:
       return '#757575';
   }
+}
+
+// Helper function to get status icon
+function getStatusIcon(status: string) {
+  const statusObj = STATUSES.find(s => s.value === status);
+  return statusObj?.icon || HourglassEmptyIcon;
 }
